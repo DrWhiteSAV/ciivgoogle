@@ -420,6 +420,12 @@ const SkillCard = React.memo(({ skill, index, color }: { skill: Skill, index: nu
 ));
 
 const HabitatChart = React.memo(({ data, color }: { data: Habitat, color: string }) => {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   const chartData = useMemo(() => [
     { subject: 'Темп', A: data.temp, fullMark: 100, desc: 'Температура среды' },
     { subject: 'Грав', A: data.grav, fullMark: 100, desc: 'Сила гравитации' },
@@ -429,10 +435,14 @@ const HabitatChart = React.memo(({ data, color }: { data: Habitat, color: string
     { subject: 'Рес', A: data.res, fullMark: 100, desc: 'Доступность ресурсов' },
   ], [data]);
 
+  if (!isMounted) {
+    return <div className="w-full h-48 flex items-center justify-center text-white/5 text-[10px] font-mono uppercase tracking-widest">Загрузка...</div>;
+  }
+
   return (
-    <div className="w-full flex flex-col items-center">
-      <div className="w-full h-48">
-        <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full flex flex-col items-center min-w-0">
+      <div className="w-full h-48 min-w-0 flex items-center justify-center relative overflow-hidden">
+        <ResponsiveContainer width="100%" height={180} minWidth={0} minHeight={0}>
           <RadarChart cx="50%" cy="50%" outerRadius="60%" data={chartData}>
             <PolarGrid stroke="#ffffff20" />
             <PolarAngleAxis 
@@ -600,7 +610,8 @@ export default function App() {
       return;
     }
     const progressCount = gameState.skills.filter(s => s.type === 'progress').length;
-    const stability = Math.round((progressCount / gameState.skills.length) * 100);
+    const regressCount = gameState.skills.filter(s => s.type === 'regress').length;
+    const stability = Math.min(100, Math.max(0, 100 - (regressCount * 15) + (progressCount * 5)));
     setGameState(prev => ({ ...prev, stability }));
   }, [gameState.skills]);
 
@@ -767,7 +778,7 @@ export default function App() {
       const newYear = prev.year + selectedYearsToPass + (withBonus ? 5 : 0);
       const newPop = Math.max(1, Math.floor(prev.population + populationChange));
       const newEra = getEra(newYear, newPop);
-
+      
       const newSkill: Skill = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: result.acquiredSkill?.name || 'Новый навык',
@@ -787,11 +798,11 @@ export default function App() {
         choices: Array.isArray(result.newChoices) ? result.newChoices : prev.choices,
         history: [...prev.history, `Год ${newYear}: ${result.choiceTitle || 'Выбор сделан'}`],
         skills: [...prev.skills, newSkill],
-        accelerationBonus: withBonus ? prev.accelerationBonus : (result.accelerationBonus ? {
+        accelerationBonus: result.accelerationBonus ? {
           name: result.accelerationBonus.name,
           desc: result.accelerationBonus.description,
           tapsRequired: result.accelerationBonus.tapsRequired
-        } : null),
+        } : null,
         bonusTaps: 0,
         isBonusActive: false,
         pendingResult: null
@@ -842,7 +853,7 @@ export default function App() {
                     setGameState(prev => ({ ...prev, planet: p }));
                     setSetupPhase('race');
                   }}
-                  className="group flex flex-col p-6 bg-transparent border border-white/10 rounded-2xl text-left transition-all hover:bg-gold/10 hover:border-gold/50"
+                  className="group flex flex-col p-6 bg-transparent border border-white/10 rounded-2xl text-left transition-all hover:bg-gold/10 hover:border-gold/50 min-w-0"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -864,7 +875,7 @@ export default function App() {
                     setGameState(prev => ({ ...prev, race: r }));
                     setSetupPhase('done');
                   }}
-                  className="group flex flex-col p-6 bg-transparent border border-white/10 rounded-2xl text-left transition-all hover:bg-gold/10 hover:border-gold/50"
+                  className="group flex flex-col p-6 bg-transparent border border-white/10 rounded-2xl text-left transition-all hover:bg-gold/10 hover:border-gold/50 min-w-0"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -1050,6 +1061,10 @@ export default function App() {
                   <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Стабильность</span>
                   <span className="text-2xl md:text-4xl font-mono text-gold">{gameState.stability}%</span>
                 </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Совместимость</span>
+                  <span className="text-2xl md:text-4xl font-mono text-gold">{gameState.compatibility}%</span>
+                </div>
               </div>
 
               {/* Biological Info Blocks */}
@@ -1069,7 +1084,7 @@ export default function App() {
                     <div className="flex justify-between"><span className="text-white/40">Срок жизни:</span> <span>{(gameState.race as any).development.lifespan}</span></div>
                   </div>
                 </div>
-                <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left">
+                <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left min-w-0">
                   <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Среда обитания</h4>
                   <HabitatChart data={gameState.race.habitat as Habitat} color="#d4af37" />
                 </div>
@@ -1659,7 +1674,7 @@ export default function App() {
               animate={{ scale: 1, opacity: 1 }}
               className="max-w-md w-full bg-transparent backdrop-blur-[10px] border border-white/20 p-8 rounded-3xl text-center shadow-2xl"
             >
-              {gameState.pendingResult?.populationChange >= 0 ? (
+              {gameState.pendingResult?.populationGrowthPercent >= 0 ? (
                 <Sparkles className="text-emerald-400 mx-auto mb-6" size={48} />
               ) : (
                 <ZapOff className="text-red-400 mx-auto mb-6" size={48} />
@@ -1780,7 +1795,7 @@ export default function App() {
 
               <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10 min-w-0">
                     <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Характеристики среды</h4>
                     <HabitatChart data={gameState.planet.habitat} color="#d4af37" />
                   </div>
@@ -1862,7 +1877,7 @@ export default function App() {
 
               <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10 min-w-0">
                     <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Предпочтения среды</h4>
                     <HabitatChart data={gameState.race.habitat} color="#6432c8" />
                   </div>
