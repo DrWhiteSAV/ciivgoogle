@@ -24,13 +24,29 @@ import {
   Shield,
   ZapOff,
   User,
-  MapPin
+  MapPin,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  Activity,
+  Heart,
+  Baby,
+  Skull
 } from 'lucide-react';
-import { PLANETS, RACES } from './constants';
+import { 
+  Radar, 
+  RadarChart, 
+  PolarGrid, 
+  PolarAngleAxis, 
+  PolarRadiusAxis, 
+  ResponsiveContainer 
+} from 'recharts';
+import { PLANETS, RACES, getCompatibility, Habitat } from './constants';
 
 // --- Types ---
 
-type Section = 'genesis' | 'fate' | 'progress';
+type Section = 'genesis' | 'fate' | 'tree';
 
 interface Tech {
   id: string;
@@ -46,6 +62,7 @@ interface Skill {
   name: string;
   desc: string;
   year: number;
+  type: 'progress' | 'regress';
 }
 
 interface AccelerationBonus {
@@ -70,6 +87,8 @@ interface GameState {
   bonusTaps: number;
   isBonusActive: boolean;
   pendingResult: any | null;
+  stability: number;
+  compatibility: number;
 }
 
 const ERAS = [
@@ -244,17 +263,42 @@ const SpaceBackground: React.FC = () => {
       ctx.fillStyle = '#050505';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw nebula-like glow
-      const gradient = ctx.createRadialGradient(
-        canvas.width / 2, canvas.height / 2, 0,
-        canvas.width / 2, canvas.height / 2, canvas.width / 1.2
+      // Draw galaxy-like background
+      const time = Date.now() * 0.0005;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+
+      // Main galaxy glow
+      const galaxyGradient = ctx.createRadialGradient(
+        centerX, centerY, 0,
+        centerX, centerY, canvas.width * 0.8
       );
-      gradient.addColorStop(0, 'rgba(212, 175, 55, 0.08)');
-      gradient.addColorStop(0.3, 'rgba(100, 50, 200, 0.03)');
-      gradient.addColorStop(0.6, 'rgba(50, 150, 255, 0.02)');
-      gradient.addColorStop(1, 'rgba(5, 5, 5, 0)');
-      ctx.fillStyle = gradient;
+      galaxyGradient.addColorStop(0, `rgba(212, 175, 55, ${0.1 + Math.sin(time) * 0.02})`);
+      galaxyGradient.addColorStop(0.4, `rgba(100, 50, 200, ${0.05 + Math.cos(time * 0.8) * 0.01})`);
+      galaxyGradient.addColorStop(0.7, `rgba(50, 150, 255, ${0.03 + Math.sin(time * 1.2) * 0.01})`);
+      galaxyGradient.addColorStop(1, 'rgba(5, 5, 5, 0)');
+      
+      ctx.fillStyle = galaxyGradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Rotating spiral arms (simplified)
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(time * 0.1);
+      for (let i = 0; i < 3; i++) {
+        ctx.rotate((Math.PI * 2) / 3);
+        const armGradient = ctx.createRadialGradient(
+          canvas.width * 0.2, 0, 0,
+          canvas.width * 0.2, 0, canvas.width * 0.4
+        );
+        armGradient.addColorStop(0, 'rgba(212, 175, 55, 0.03)');
+        armGradient.addColorStop(1, 'rgba(212, 175, 55, 0)');
+        ctx.fillStyle = armGradient;
+        ctx.beginPath();
+        ctx.ellipse(canvas.width * 0.2, 0, canvas.width * 0.4, canvas.width * 0.1, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
 
       stars.forEach(star => {
         ctx.fillStyle = `rgba(212, 175, 55, ${star.opacity})`;
@@ -343,6 +387,134 @@ const CircularProgress: React.FC<{ progress: number; size?: number }> = ({ progr
   );
 };
 
+const SkillCard = React.memo(({ skill, index, color }: { skill: Skill, index: number, color: 'gold' | 'red' }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: index * 0.1 }}
+    className="relative group w-full max-w-sm"
+  >
+    <div className={`p-6 rounded-2xl border ${color === 'gold' ? 'border-gold/20 bg-gold/5' : 'border-red-500/20 bg-red-500/5'} backdrop-blur-md transition-all cursor-help relative overflow-hidden`}>
+      <div className="flex items-start gap-4">
+        <div className={`p-3 rounded-xl ${color === 'gold' ? 'bg-gold/10 text-gold' : 'bg-red-500/10 text-red-500'}`}>
+          {color === 'gold' ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Год {skill.year}</span>
+            <span className={`text-[8px] font-mono px-2 py-0.5 rounded border ${color === 'gold' ? 'border-gold/30 text-gold' : 'border-red-500/30 text-red-500'}`}>
+              {color === 'gold' ? 'ПРОГРЕСС' : 'РЕГРЕСС'}
+            </span>
+          </div>
+          <h4 className="text-sm font-medium text-white mb-2">{skill.name}</h4>
+          <p className="text-xs text-white/60 leading-relaxed">{skill.desc}</p>
+        </div>
+      </div>
+      
+      {/* Decorative background element */}
+      <div className={`absolute -right-4 -bottom-4 opacity-5 ${color === 'gold' ? 'text-gold' : 'text-red-500'}`}>
+        <Atom size={80} />
+      </div>
+    </div>
+  </motion.div>
+));
+
+const HabitatChart = React.memo(({ data, color }: { data: Habitat, color: string }) => {
+  const chartData = useMemo(() => [
+    { subject: 'Темп', A: data.temp, fullMark: 100, desc: 'Температура среды' },
+    { subject: 'Грав', A: data.grav, fullMark: 100, desc: 'Сила гравитации' },
+    { subject: 'Атмо', A: data.atmo, fullMark: 100, desc: 'Плотность атмосферы' },
+    { subject: 'Рад', A: data.rad, fullMark: 100, desc: 'Уровень радиации' },
+    { subject: 'Влаж', A: data.humi, fullMark: 100, desc: 'Влажность воздуха' },
+    { subject: 'Рес', A: data.res, fullMark: 100, desc: 'Доступность ресурсов' },
+  ], [data]);
+
+  return (
+    <div className="w-full flex flex-col items-center">
+      <div className="w-full h-48">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart cx="50%" cy="50%" outerRadius="60%" data={chartData}>
+            <PolarGrid stroke="#ffffff20" />
+            <PolarAngleAxis 
+              dataKey="subject" 
+              tick={{ fill: '#ffffff60', fontSize: 10 }} 
+              isAnimationActive={false}
+            />
+            <Radar
+              name="Habitat"
+              dataKey="A"
+              stroke={color}
+              fill={color}
+              fillOpacity={0.5}
+              isAnimationActive={false}
+              animationDuration={0}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="grid grid-cols-3 gap-2 w-full mt-2 px-4">
+        {chartData.map(item => (
+          <div key={item.subject} className="flex flex-col items-center border border-white/5 rounded p-1 bg-white/5 group relative cursor-help">
+            <span className="text-[8px] text-white/30 uppercase">{item.subject}</span>
+            <span className="text-[10px] font-mono text-gold">{item.A}</span>
+            
+            {/* Tooltip */}
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-24 p-2 bg-black/90 border border-white/10 rounded text-[8px] text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center backdrop-blur-md">
+              {item.desc}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+const RaceTable = ({ race }: { race: any }) => (
+  <div className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-[10px] font-mono">
+    <div className="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <div className="text-gold/60 uppercase mb-1 flex items-center gap-1"><Baby size={10} /> Репродукция</div>
+        <div className="text-white/80">Тип: {race.reproduction.type}</div>
+        <div className="text-white/80">Срок: {race.reproduction.term}</div>
+        <div className="text-white/80">Потомство: {race.reproduction.offspring}</div>
+      </div>
+      <div>
+        <div className="text-gold/60 uppercase mb-1 flex items-center gap-1"><Activity size={10} /> Развитие</div>
+        <div className="text-white/80">Взросление: {race.development.maturation}</div>
+        <div className="text-white/80">Срок жизни: {race.development.lifespan}</div>
+        <div className="text-white/80">Особенности: {race.development.features}</div>
+      </div>
+    </div>
+    <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-2">
+      <div>
+        <div className="text-green-400/60 uppercase mb-1 flex items-center gap-1"><TrendingUp size={10} /> Прирост</div>
+        <div className="text-white/80">{race.stats.avgGrowth}% в год</div>
+      </div>
+      <div>
+        <div className="text-red-400/60 uppercase mb-1 flex items-center gap-1"><Skull size={10} /> Смертность</div>
+        <div className="text-white/80">{race.stats.avgMortality}% в год</div>
+      </div>
+    </div>
+  </div>
+);
+
+const PlanetCompatibilityTable = ({ race, planet }: { race: any, planet: any }) => {
+  const compatibility = getCompatibility(race.habitat, planet.habitat);
+  return (
+    <div className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-[10px] font-mono">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-gold/60 uppercase">Совместимость с {planet.name}</span>
+        <span className={`text-lg font-bold ${compatibility > 70 ? 'text-green-400' : compatibility > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+          {compatibility}%
+        </span>
+      </div>
+      <div className="text-white/40 leading-relaxed">
+        Влияет на смертность, срок жизни и прирост населения.
+      </div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -366,20 +538,78 @@ export default function App() {
     accelerationBonus: null,
     bonusTaps: 0,
     isBonusActive: false,
-    pendingResult: null
+    pendingResult: null,
+    stability: 100,
+    compatibility: 100
   });
 
   const [activeSection, setActiveSection] = useState<Section>('genesis');
   const [hoveredChoice, setHoveredChoice] = useState<number | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isObserverMode, setIsObserverMode] = useState(false);
   const [selectedYearsToPass, setSelectedYearsToPass] = useState(0);
   const [showBonusNotify, setShowBonusNotify] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
   const [showChronicleModal, setShowChronicleModal] = useState(false);
   const [secondsToNextYear, setSecondsToNextYear] = useState(60);
+  const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
+  const [showYearSelectionModal, setShowYearSelectionModal] = useState(false);
   const [generationTimer, setGenerationTimer] = useState(0);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  
+  const [mobileTreeBranch, setMobileTreeBranch] = useState<'progress' | 'regress'>('progress');
+
+  const [showWorldModal, setShowWorldModal] = useState(false);
+  const [showRaceModal, setShowRaceModal] = useState(false);
+  const mainContainerRef = useRef<HTMLDivElement>(null);
+
+  // Observer Mode Logic
+  useEffect(() => {
+    if (isObserverMode && activeSection === 'fate' && gameState.availableYears > 0 && !isGenerating && !gameState.pendingResult && !showResultModal && !showChronicleModal && !showYearSelectionModal) {
+      const randomChoice = Math.floor(Math.random() * gameState.choices.length);
+      const years = gameState.availableYears;
+      setSelectedYearsToPass(years);
+      handleFateChoice(randomChoice, years);
+    }
+  }, [isObserverMode, activeSection, gameState.availableYears, isGenerating, gameState.pendingResult, showResultModal, showChronicleModal, showYearSelectionModal]);
+
+  useEffect(() => {
+    if (isObserverMode && gameState.pendingResult && !isGenerating) {
+      const timer = setTimeout(() => {
+        applyPendingResult(false);
+        // Ensure modals are closed in observer mode
+        setShowResultModal(false);
+        setShowChronicleModal(false);
+        setSelectedYearsToPass(0);
+      }, 2000); // Slightly longer delay for visibility
+      return () => clearTimeout(timer);
+    }
+  }, [isObserverMode, gameState.pendingResult, isGenerating]);
+
+  // Scroll to top on section/phase change
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (mainContainerRef.current) {
+      mainContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [setupPhase, activeSection]);
+
+  // Calculate stability whenever skills change
+  useEffect(() => {
+    if (gameState.skills.length === 0) {
+      setGameState(prev => ({ ...prev, stability: 100 }));
+      return;
+    }
+    const progressCount = gameState.skills.filter(s => s.type === 'progress').length;
+    const stability = Math.round((progressCount / gameState.skills.length) * 100);
+    setGameState(prev => ({ ...prev, stability }));
+  }, [gameState.skills]);
+
+  // Calculate compatibility when race or planet changes
+  useEffect(() => {
+    const compatibility = getCompatibility(gameState.race.habitat as Habitat, gameState.planet.habitat as Habitat);
+    setGameState(prev => ({ ...prev, compatibility }));
+  }, [gameState.race, gameState.planet]);
+
   // Timer for available years and countdown
   useEffect(() => {
     const interval = setInterval(() => {
@@ -416,12 +646,15 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isGenerating]);
 
-  const handleFateChoice = async (choiceIndex: number) => {
-    if (selectedYearsToPass < 0 || gameState.availableYears < selectedYearsToPass) return;
+  const handleFateChoice = async (choiceIndex: number, yearsToPass: number) => {
+    if (yearsToPass < 1 || gameState.availableYears < yearsToPass) return;
     
     setIsGenerating(true);
     setGenerationError(null);
     const choice = gameState.choices[choiceIndex];
+    
+    // Pre-determine outcome if no bonus is active
+    const outcomeType = gameState.isBonusActive ? 'positive' : (Math.random() > 0.5 ? 'positive' : 'negative');
     
     try {
       const { GoogleGenAI } = await import("@google/genai");
@@ -432,27 +665,39 @@ export default function App() {
         Текущее состояние:
         Планета: ${gameState.planet.name} (${gameState.planet.desc})
         Раса: ${gameState.race.name} (${gameState.race.desc})
-        Биология расы: ${JSON.stringify((gameState.race as any).bio)}
+        Биология расы: ${JSON.stringify((gameState.race as any).reproduction)} | ${JSON.stringify((gameState.race as any).development)}
+        Статистика расы: ${JSON.stringify((gameState.race as any).stats)}
+        Особенности расы: ${(gameState.race as any).desc}
+        Среда обитания расы (диаграмма): ${JSON.stringify(gameState.race.habitat)}
+        Среда обитания планеты (диаграмма): ${JSON.stringify(gameState.planet.habitat)}
+        Стабильность цивилизации: ${gameState.stability}%
+        Совместимость с планетой: ${gameState.compatibility}%
         Текущее население: ${gameState.population}
         Текущий год: ${gameState.year}
         Текущая эпоха: ${gameState.era}
         Ситуация: ${gameState.currentSituation}
         Выбранный путь: ${choice.title} - ${choice.desc}
-        Прошло лет: ${selectedYearsToPass}
+        Прошло лет: ${yearsToPass}
+        
+        Навыки ПРОГРЕССА: ${JSON.stringify(gameState.skills.filter(s => s.type === 'progress').map(s => s.name))}
+        Навыки РЕГРЕССА: ${JSON.stringify(gameState.skills.filter(s => s.type === 'regress').map(s => s.name))}
+        Последние события (5 лет): ${JSON.stringify(gameState.chronicles.slice(-5).map(c => c.event))}
+
+        ПРЕДОПРЕДЕЛЕННЫЙ ИСХОД: ${outcomeType === 'positive' ? 'ПОЛОЖИТЕЛЬНЫЙ (Прогресс)' : 'ОТРИЦАТЕЛЬНЫЙ (Регресс)'}
 
         ЗАДАЧА:
-        1. Напишите краткую летопись (хронику) для КАЖДОГО года из этих ${selectedYearsToPass} лет.
-        2. Опишите новую ситуацию.
+        1. Напишите краткую летопись (хронику) для КАЖДОГО года из этих ${yearsToPass} лет.
+        2. Опишите новую ситуацию, соответствующую исходу (${outcomeType}).
         3. Предложите 3 новых варианта выбора.
-        4. Рассчитайте изменение населения в ПРОЦЕНТАХ (populationGrowthPercent) за ВЕСЬ период (${selectedYearsToPass} лет). 
+        4. Рассчитайте изменение населения в ПРОЦЕНТАХ (populationGrowthPercent) за ВЕСЬ период (${yearsToPass} лет). 
            ВАЖНО: 
+           - Если исход ПОЛОЖИТЕЛЬНЫЙ: рост должен быть 1-5% в год.
+           - Если исход ОТРИЦАТЕЛЬНЫЙ: рост должен быть отрицательным (убыль) или крайне малым (0-0.5%).
            - Рост должен быть СТРОГО реалистичным. 
            - Если раса мечет икру (нерест), учитывайте, что выживает лишь 0.5-1% потомства. 
            - Учитывайте болезни, хищников и нехватку ресурсов на старте. 
-           - Средний здоровый прирост для примитивной цивилизации: 1-3% в ГОД. 
-           - В случае катастроф прирост может быть отрицательным (например, -10%).
            - Из 144 особей НЕ МОЖЕТ стать миллион за 20 лет. Максимум 200-300 особей при идеальных условиях.
-        5. Сгенерируйте 1 новый навык и 1 бонус ускорения.
+        5. Сгенерируйте 1 новый навык и 1 бонус ускорения. Навык должен быть "успешным" (прогресс) или "неудачным/деградационным" (регресс) в зависимости от исхода.
 
         ОГРАНИЧЕНИЯ ПО ЭПОХЕ:
         - Если эпоха "${gameState.era}", технологии ДОЛЖНЫ соответствовать этому уровню. 
@@ -465,6 +710,7 @@ export default function App() {
           "newSituation": string,
           "newChoices": [{"title": string, "desc": string}],
           "populationGrowthPercent": number,
+          "isSuccess": boolean,
           "acquiredSkill": {"name": string, "description": string},
           "accelerationBonus": {"name": string, "description": string, "tapsRequired": number}
         }
@@ -480,7 +726,7 @@ export default function App() {
       
       setGameState(prev => ({
         ...prev,
-        pendingResult: { ...result, choiceTitle: choice.title }
+        pendingResult: { ...result, choiceTitle: choice.title, outcomeType }
       }));
 
       setShowBonusNotify(true);
@@ -496,8 +742,12 @@ export default function App() {
     if (!result) return;
 
     // Calculate population growth based on percentage from AI
-    const growthPercent = result.populationGrowthPercent || 0;
-    let finalGrowthFactor = growthPercent / 100;
+    // Account for compatibility and stability
+    const baseGrowthPercent = result.populationGrowthPercent || 0;
+    const compatibilityMultiplier = gameState.compatibility / 100;
+    const stabilityMultiplier = gameState.stability / 100;
+    
+    let finalGrowthFactor = (baseGrowthPercent / 100) * compatibilityMultiplier * stabilityMultiplier;
 
     // Bonus influence: 
     // If bonus active, we mitigate losses or boost growth slightly
@@ -519,10 +769,11 @@ export default function App() {
       const newEra = getEra(newYear, newPop);
 
       const newSkill: Skill = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: result.acquiredSkill.name,
-        desc: result.acquiredSkill.description,
-        year: newYear
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: result.acquiredSkill?.name || 'Новый навык',
+        desc: result.acquiredSkill?.description || 'Описание навыка',
+        year: newYear,
+        type: result.outcomeType === 'positive' ? 'progress' : 'regress'
       };
 
       return {
@@ -531,12 +782,16 @@ export default function App() {
         population: newPop,
         era: newEra,
         availableYears: prev.availableYears - selectedYearsToPass,
-        chronicles: [...prev.chronicles, ...result.chronicles],
-        currentSituation: result.newSituation,
-        choices: result.newChoices,
-        history: [...prev.history, `Год ${newYear}: ${result.choiceTitle}`],
+        chronicles: [...prev.chronicles, ...(Array.isArray(result.chronicles) ? result.chronicles : [])],
+        currentSituation: result.newSituation || prev.currentSituation,
+        choices: Array.isArray(result.newChoices) ? result.newChoices : prev.choices,
+        history: [...prev.history, `Год ${newYear}: ${result.choiceTitle || 'Выбор сделан'}`],
         skills: [...prev.skills, newSkill],
-        accelerationBonus: withBonus ? prev.accelerationBonus : result.accelerationBonus,
+        accelerationBonus: withBonus ? prev.accelerationBonus : (result.accelerationBonus ? {
+          name: result.accelerationBonus.name,
+          desc: result.accelerationBonus.description,
+          tapsRequired: result.accelerationBonus.tapsRequired
+        } : null),
         bonusTaps: 0,
         isBonusActive: false,
         pendingResult: null
@@ -575,7 +830,10 @@ export default function App() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+          <div 
+            key={setupPhase}
+            className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar"
+          >
             {setupPhase === 'planet' ? (
               PLANETS.map((p) => (
                 <button
@@ -586,15 +844,16 @@ export default function App() {
                   }}
                   className="group flex flex-col p-6 bg-transparent border border-white/10 rounded-2xl text-left transition-all hover:bg-gold/10 hover:border-gold/50"
                 >
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white/5 rounded-lg group-hover:bg-gold/20 transition-colors">
-                        {(p as any).icon || <MapPin size={16} />}
+                      <div className="w-16 h-16 bg-white/5 rounded-lg group-hover:bg-gold/20 transition-colors overflow-hidden border border-white/10">
+                        <img src={p.image} alt={p.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
                       </div>
                       <span className="text-lg font-medium text-gold group-hover:glow-gold">{p.name}</span>
                     </div>
                   </div>
-                  <p className="text-xs text-white/50 leading-relaxed">{p.desc}</p>
+                  <p className="text-xs text-white/50 leading-relaxed mb-4">{p.desc}</p>
+                  <HabitatChart data={p.habitat} color="#d4af37" />
                 </button>
               ))
             ) : (
@@ -607,16 +866,22 @@ export default function App() {
                   }}
                   className="group flex flex-col p-6 bg-transparent border border-white/10 rounded-2xl text-left transition-all hover:bg-gold/10 hover:border-gold/50"
                 >
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white/5 rounded-lg group-hover:bg-gold/20 transition-colors">
-                        {(r as any).icon || <User size={16} />}
+                      <div className="w-16 h-16 bg-white/5 rounded-lg group-hover:bg-gold/20 transition-colors overflow-hidden border border-white/10">
+                        <img src={r.image} alt={r.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
                       </div>
                       <span className="text-lg font-medium text-gold group-hover:glow-gold">{r.name}</span>
                     </div>
                   </div>
-                  <div className="text-[10px] font-mono text-white/30 uppercase mb-2">{r.type} | {r.trait}</div>
-                  <p className="text-xs text-white/50 leading-relaxed">{r.desc}</p>
+                  <div className="text-[10px] font-mono text-white/30 uppercase mb-4">{r.type} | {r.trait}</div>
+                  <p className="text-xs text-white/50 leading-relaxed mb-6">{r.desc}</p>
+                  
+                  <div className="space-y-4">
+                    <HabitatChart data={r.habitat} color="#6432c8" />
+                    <RaceTable race={r} />
+                    <PlanetCompatibilityTable race={r} planet={gameState.planet} />
+                  </div>
                 </button>
               ))
             )}
@@ -627,12 +892,27 @@ export default function App() {
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col overflow-x-hidden overflow-y-auto selection:bg-gold/30 custom-scrollbar">
+    <div 
+      ref={mainContainerRef}
+      className="relative min-h-screen flex flex-col overflow-x-hidden overflow-y-auto selection:bg-gold/30 custom-scrollbar"
+    >
       <SpaceBackground />
 
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-20 flex items-center justify-between px-6 md:px-12 bg-gradient-to-b from-deep-black to-transparent backdrop-blur-sm">
-        <div className="hidden md:flex items-center gap-6 text-xs font-mono text-gold/60">
+      <header className="fixed top-0 left-0 right-0 z-50 flex flex-col md:flex-row items-center justify-between px-4 md:px-12 py-3 bg-black/40 backdrop-blur-md border-b border-white/10">
+        {/* Mobile Stats */}
+        <div className="flex md:hidden flex-wrap justify-center gap-x-3 gap-y-1 text-[7px] font-mono uppercase tracking-tighter mb-2">
+          <div className="flex gap-1"><span className="text-white/30">ПЛАНЕТА:</span> <span className="text-gold">{gameState.planet.name}</span></div>
+          <div className="flex gap-1"><span className="text-white/30">РАСА:</span> <span className="text-gold">{gameState.race.name}</span></div>
+          <div className="flex gap-1"><span className="text-white/30">ГОД:</span> <span className="text-gold">{gameState.year}</span></div>
+          <div className="flex gap-1"><span className="text-white/30">НАСЕЛЕНИЕ:</span> <span className="text-gold">{gameState.population.toLocaleString()}</span></div>
+          <div className="flex gap-1"><span className="text-white/30">ЭРА:</span> <span className="text-gold">{gameState.era}</span></div>
+          <div className="flex gap-1"><span className="text-white/30">СТАБ:</span> <span className="text-gold">{gameState.stability}%</span></div>
+          <div className="flex gap-1"><span className="text-white/30">СОВМ:</span> <span className="text-gold">{gameState.compatibility}%</span></div>
+          <div className="flex gap-1"><span className="text-white/30">РАБОТА:</span> <span className="text-gold">{gameState.availableYears} ({secondsToNextYear}с)</span></div>
+        </div>
+
+        <div className="hidden md:flex items-center gap-6 text-[10px] font-mono uppercase tracking-widest">
           <div className="flex flex-col">
             <span className="text-white/30">ПЛАНЕТА</span>
             <span className="text-gold">{gameState.planet.name}</span>
@@ -658,24 +938,36 @@ export default function App() {
           </div>
           <div className="w-px h-8 bg-white/10" />
           <div className="flex flex-col">
+            <span className="text-white/30">ЭРА</span>
+            <span className="text-gold">{gameState.era}</span>
+          </div>
+          <div className="w-px h-8 bg-white/10" />
+          <div className="flex flex-col">
+            <span className="text-white/30">СТАБИЛЬНОСТЬ</span>
+            <span className={`font-mono ${gameState.stability > 70 ? 'text-green-400' : gameState.stability > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+              {gameState.stability}%
+            </span>
+          </div>
+          <div className="w-px h-8 bg-white/10" />
+          <div className="flex flex-col">
+            <span className="text-white/30">СОВМЕСТИМОСТЬ</span>
+            <span className={`font-mono ${gameState.compatibility > 70 ? 'text-green-400' : gameState.compatibility > 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+              {gameState.compatibility}%
+            </span>
+          </div>
+          <div className="w-px h-8 bg-white/10" />
+          <div className="flex flex-col">
             <span className="text-white/30">ГОДЫ В РАБОТЕ</span>
-            <span className="text-gold flex items-center gap-1">
-              {gameState.availableYears} <Clock size={12} className="animate-pulse" />
+            <span className="text-gold flex items-center gap-2">
+              {gameState.availableYears} 
+              <span className="text-[10px] text-white/20">({secondsToNextYear}с)</span>
+              <Clock size={12} className="animate-spin-slow" />
             </span>
           </div>
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2">
-          <img 
-            src="https://i.ibb.co/D0mRFhJ/civilogo.png" 
-            alt="CIIV Logo" 
-            className="h-12 md:h-16 drop-shadow-[0_0_15px_rgba(212,175,55,0.5)] cursor-pointer"
-            onClick={() => setActiveSection('genesis')}
-          />
-        </div>
-
-        <nav className="hidden md:flex items-center gap-8">
-          {(['genesis', 'fate', 'progress'] as Section[]).map((s) => (
+        <div className="hidden md:flex items-center gap-8">
+          {(['genesis', 'fate', 'tree'] as Section[]).map((s) => (
             <button
               key={s}
               onClick={() => setActiveSection(s)}
@@ -683,10 +975,15 @@ export default function App() {
                 activeSection === s ? 'text-gold glow-gold' : 'text-white/50'
               }`}
             >
-              {s === 'genesis' ? 'Генезис' : s === 'fate' ? 'Ткач Судеб' : 'Прогресс'}
+              {s === 'genesis' ? 'Генезис' : s === 'fate' ? 'Ткач Судеб' : 'Дерево жизни'}
             </button>
           ))}
-        </nav>
+        </div>
+        
+        {/* Mobile Navigation */}
+        <div className="hidden">
+          {/* Removed from header on mobile */}
+        </div>
       </header>
 
       {/* Main Content */}
@@ -751,7 +1048,7 @@ export default function App() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Стабильность</span>
-                  <span className="text-2xl md:text-4xl font-mono text-gold">94%</span>
+                  <span className="text-2xl md:text-4xl font-mono text-gold">{gameState.stability}%</span>
                 </div>
               </div>
 
@@ -760,21 +1057,21 @@ export default function App() {
                 <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left">
                   <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Репродукция</h4>
                   <div className="space-y-3 text-xs">
-                    <div className="flex justify-between"><span className="text-white/40">Тип:</span> <span>{(gameState.race as any).bio.reproduction}</span></div>
-                    <div className="flex justify-between"><span className="text-white/40">Срок:</span> <span>{(gameState.race as any).bio.pregnancy}</span></div>
-                    <div className="flex justify-between"><span className="text-white/40">Потомство:</span> <span>{(gameState.race as any).bio.offspring}</span></div>
+                    <div className="flex justify-between"><span className="text-white/40">Тип:</span> <span>{(gameState.race as any).reproduction.type}</span></div>
+                    <div className="flex justify-between"><span className="text-white/40">Срок:</span> <span>{(gameState.race as any).reproduction.term}</span></div>
+                    <div className="flex justify-between"><span className="text-white/40">Потомство:</span> <span>{(gameState.race as any).reproduction.offspring}</span></div>
                   </div>
                 </div>
                 <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left">
                   <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Развитие</h4>
                   <div className="space-y-3 text-xs">
-                    <div className="flex justify-between"><span className="text-white/40">Взросление:</span> <span>{(gameState.race as any).bio.maturation}</span></div>
-                    <div className="flex justify-between"><span className="text-white/40">Срок жизни:</span> <span>{(gameState.race as any).bio.lifespan}</span></div>
+                    <div className="flex justify-between"><span className="text-white/40">Взросление:</span> <span>{(gameState.race as any).development.maturation}</span></div>
+                    <div className="flex justify-between"><span className="text-white/40">Срок жизни:</span> <span>{(gameState.race as any).development.lifespan}</span></div>
                   </div>
                 </div>
                 <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left">
-                  <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Особенности</h4>
-                  <p className="text-xs text-white/60 leading-relaxed">{(gameState.race as any).desc}</p>
+                  <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Среда обитания</h4>
+                  <HabitatChart data={gameState.race.habitat as Habitat} color="#d4af37" />
                 </div>
               </div>
 
@@ -783,10 +1080,13 @@ export default function App() {
                 <motion.div 
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
-                  className="bg-transparent border border-white/10 p-8 rounded-3xl text-left hover:border-gold/30 transition-all group"
+                  onClick={() => setShowWorldModal(true)}
+                  className="bg-transparent border border-white/10 p-8 rounded-3xl text-left hover:border-gold/30 transition-all group cursor-pointer"
                 >
-                  <div className="flex items-center gap-3 mb-4 text-gold">
-                    <Globe size={24} className="group-hover:animate-pulse" />
+                  <div className="flex items-center gap-4 mb-4 text-gold">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden border border-gold/20 shadow-[0_0_15px_rgba(212,175,55,0.2)]">
+                      <img src={gameState.planet.image} alt={gameState.planet.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
                     <h3 className="text-xl font-light">Мир: {gameState.planet.name}</h3>
                   </div>
                   <p className="text-white/60 text-sm leading-relaxed mb-6">{gameState.planet.desc}</p>
@@ -799,10 +1099,13 @@ export default function App() {
                 <motion.div 
                   initial={{ opacity: 0, x: 20 }}
                   whileInView={{ opacity: 1, x: 0 }}
-                  className="bg-transparent border border-white/10 p-8 rounded-3xl text-left hover:border-gold/30 transition-all group"
+                  onClick={() => setShowRaceModal(true)}
+                  className="bg-transparent border border-white/10 p-8 rounded-3xl text-left hover:border-gold/30 transition-all group cursor-pointer"
                 >
-                  <div className="flex items-center gap-3 mb-4 text-gold">
-                    <User size={24} className="group-hover:animate-bounce" />
+                  <div className="flex items-center gap-4 mb-4 text-gold">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden border border-gold/20 shadow-[0_0_15px_rgba(212,175,55,0.2)]">
+                      <img src={gameState.race.image} alt={gameState.race.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
                     <h3 className="text-xl font-light">Раса: {gameState.race.name}</h3>
                   </div>
                   <p className="text-white/60 text-sm leading-relaxed mb-6">{gameState.race.desc}</p>
@@ -812,16 +1115,6 @@ export default function App() {
                   </div>
                 </motion.div>
               </div>
-
-              {/* Scroll Hint */}
-              <motion.div 
-                animate={{ y: [0, 10, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="mt-16 flex flex-col items-center gap-2 text-white/20 font-mono text-[10px] uppercase"
-              >
-                Листайте вниз
-                <ChevronRight className="rotate-90" size={16} />
-              </motion.div>
             </motion.div>
           )}
 
@@ -834,7 +1127,18 @@ export default function App() {
               className="w-full max-w-4xl flex flex-col items-center"
             >
               {/* 1. Logo with radial glow */}
-              <div className="relative mb-8">
+              <div className="relative mb-8 flex flex-col items-center">
+                <button
+                  onClick={() => setIsObserverMode(!isObserverMode)}
+                  className={`mb-6 px-6 py-2 rounded-full border transition-all font-mono text-[10px] tracking-[0.2em] uppercase ${
+                    isObserverMode 
+                      ? 'bg-gold/20 border-gold text-gold shadow-[0_0_20px_rgba(212,175,55,0.4)]' 
+                      : 'bg-transparent border-gold/40 text-gold/60 hover:border-gold hover:text-gold'
+                  }`}
+                >
+                  {isObserverMode ? 'Режим наблюдателя: АКТИВЕН' : 'Включить режим наблюдателя'}
+                </button>
+                
                 <motion.div
                   animate={{ 
                     filter: ["drop-shadow(0 0 20px rgba(212,175,55,0.2))", "drop-shadow(0 0 40px rgba(212,175,55,0.5))", "drop-shadow(0 0 20px rgba(212,175,55,0.2))"] 
@@ -903,7 +1207,7 @@ export default function App() {
                       const x2 = i === 0 ? 150 : i === 1 ? 500 : 850;
                       const pathD = `M 500 0 C 500 50, ${x2} 50, ${x2} 100`;
                       return (
-                        <React.Fragment key={i}>
+                        <React.Fragment key={`branch-${i}`}>
                           <motion.path
                             d={pathD}
                             stroke="#D4AF37"
@@ -939,13 +1243,17 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {gameState.choices.map((choice, i) => (
                     <button
-                      key={i}
+                      key={`choice-${i}`}
                       onMouseEnter={() => setHoveredChoice(i)}
                       onMouseLeave={() => setHoveredChoice(null)}
-                      onClick={() => handleFateChoice(i)}
-                      disabled={isGenerating || selectedYearsToPass === 0}
+                      onClick={() => {
+                        setSelectedChoiceIndex(i);
+                        setShowYearSelectionModal(true);
+                        if (selectedYearsToPass === 0) setSelectedYearsToPass(1);
+                      }}
+                      disabled={isGenerating || gameState.availableYears < 1}
                       className={`group relative p-6 bg-transparent border border-white/10 rounded-2xl transition-all hover:bg-gold/10 hover:border-gold/50 text-center flex flex-col items-center gap-3 ${
-                        isGenerating || selectedYearsToPass === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                        isGenerating || gameState.availableYears < 1 ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
                       <div className="text-[10px] font-mono text-gold uppercase tracking-widest">{choice.title}</div>
@@ -958,28 +1266,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 5. Time Selection */}
-              <div className="w-full max-w-md bg-transparent border border-white/10 p-6 rounded-2xl mb-16">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-mono text-white/40 uppercase tracking-widest">Срок симуляции</span>
-                  <span className="text-gold font-mono">{selectedYearsToPass} л.</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max={gameState.availableYears} 
-                  value={selectedYearsToPass}
-                  onChange={(e) => setSelectedYearsToPass(parseInt(e.target.value))}
-                  className="w-full accent-gold bg-white/10 h-1 rounded-full appearance-none cursor-pointer"
-                />
-                <div className="flex justify-between mt-2 text-[10px] font-mono text-white/20">
-                  <span>0 лет</span>
-                  <span>{gameState.availableYears} лет</span>
-                </div>
-                {gameState.availableYears < 1 && (
-                  <p className="text-[10px] text-red-400/60 mt-2 text-center font-mono">Недостаточно лет в работе. Ждите начисления...</p>
-                )}
-              </div>
+              {/* Removed Time Selection from main view - now in modal */}
 
               {/* 6. Chronicles (Chronicle Tree) */}
               <div className="w-full border-t border-white/10 pt-16">
@@ -992,7 +1279,7 @@ export default function App() {
                   
                   {gameState.chronicles.slice().reverse().map((c, i) => (
                     <motion.div 
-                      key={i}
+                      key={`chronicle-main-${c.year}-${i}`}
                       initial={{ opacity: 0, x: -10 }}
                       whileInView={{ opacity: 1, x: 0 }}
                       className="relative pl-12"
@@ -1011,17 +1298,17 @@ export default function App() {
             </motion.div>
           )}
 
-          {activeSection === 'progress' && (
-            <motion.div
-              key="progress"
+          {activeSection === 'tree' && (
+            <motion.div 
+              key="tree"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="w-full max-w-5xl flex flex-col items-center"
+              className="flex flex-col items-center w-full"
             >
-              <div className="text-center mb-12">
-                <h2 className="text-3xl md:text-5xl font-light glow-gold mb-4 uppercase tracking-tighter">Прогресс Цивилизации</h2>
-                <p className="text-white/40 font-mono text-xs uppercase tracking-[0.3em]">Технологии и навыки вашего народа</p>
+              <div className="text-center mb-16">
+                <h2 className="text-4xl md:text-6xl font-light glow-gold mb-4">Дерево жизни</h2>
+                <p className="text-white/40 font-mono text-xs uppercase tracking-[0.4em]">Путь эволюции и деградации</p>
               </div>
 
               {/* Acceleration Bonus Card */}
@@ -1030,16 +1317,16 @@ export default function App() {
                   <motion.div 
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="relative p-8 rounded-3xl border border-white/20 bg-white/5 backdrop-blur-[10px] overflow-hidden group shadow-2xl"
+                    className="relative p-8 rounded-3xl border border-white/20 bg-transparent backdrop-blur-[10px] overflow-hidden group shadow-2xl"
                   >
                     <div className="absolute top-0 right-0 p-4">
                       <Zap className="text-gold animate-pulse" size={24} />
                     </div>
                     <h3 className="text-2xl font-light text-gold mb-2">
-                      {gameState.accelerationBonus?.name || gameState.pendingResult?.accelerationBonus.name}
+                      {gameState.accelerationBonus?.name || gameState.pendingResult?.accelerationBonus?.name || 'Бонус'}
                     </h3>
                     <p className="text-white/80 text-sm mb-8">
-                      {gameState.accelerationBonus?.desc || gameState.pendingResult?.accelerationBonus.desc}
+                      {gameState.accelerationBonus?.desc || gameState.pendingResult?.accelerationBonus?.description || 'Активируйте бонус для ускорения развития.'}
                     </p>
                     
                     <div className="flex flex-col items-center gap-4">
@@ -1047,17 +1334,17 @@ export default function App() {
                         <motion.div 
                           className="h-full bg-gold shadow-[0_0_10px_#D4AF37]"
                           animate={{ 
-                            width: `${(gameState.bonusTaps / (gameState.accelerationBonus?.tapsRequired || gameState.pendingResult?.accelerationBonus.tapsRequired)) * 100}%` 
+                            width: `${(gameState.bonusTaps / (gameState.accelerationBonus?.tapsRequired || gameState.pendingResult?.accelerationBonus?.tapsRequired || 10)) * 100}%` 
                           }}
                         />
                       </div>
                       <p className="text-[10px] font-mono text-white/40 uppercase">
-                        Нажмите {(gameState.accelerationBonus?.tapsRequired || gameState.pendingResult?.accelerationBonus.tapsRequired) - gameState.bonusTaps} раз для активации
+                        Нажмите {(gameState.accelerationBonus?.tapsRequired || gameState.pendingResult?.accelerationBonus?.tapsRequired || 10) - gameState.bonusTaps} раз для активации
                       </p>
                       
                       <button 
                         onClick={() => {
-                          const required = gameState.accelerationBonus?.tapsRequired || gameState.pendingResult?.accelerationBonus.tapsRequired;
+                          const required = gameState.accelerationBonus?.tapsRequired || gameState.pendingResult?.accelerationBonus?.tapsRequired || 10;
                           if (gameState.bonusTaps + 1 >= required) {
                             setGameState(prev => ({
                               ...prev,
@@ -1074,7 +1361,7 @@ export default function App() {
                             setGameState(prev => ({ ...prev, bonusTaps: prev.bonusTaps + 1 }));
                           }
                         }}
-                        className="w-full py-4 bg-gold text-black font-bold rounded-xl hover:bg-white transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] active:scale-95"
+                        className="w-full py-4 bg-transparent border border-gold text-gold font-bold rounded-xl hover:bg-gold/10 transition-all shadow-[0_0_15px_rgba(212,175,55,0.5)] active:scale-95"
                       >
                         АКТИВИРОВАТЬ БОНУС
                       </button>
@@ -1103,40 +1390,63 @@ export default function App() {
                 )}
               </div>
 
-              {/* Skill Tree */}
-              <div className="w-full">
-                <h3 className="text-xs font-mono text-white/30 uppercase tracking-[0.3em] mb-8 text-center">Древо навыков</h3>
-                <div className="flex flex-wrap justify-center gap-6">
-                  {gameState.skills.length > 0 ? (
-                    gameState.skills.map((skill, index) => (
-                      <motion.div
-                        key={skill.id}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="relative group"
-                      >
-                        {index > 0 && (
-                          <div className="absolute -left-6 top-1/2 w-6 h-px bg-gold/30" />
-                        )}
-                        <div 
-                          className="w-40 h-40 rounded-full border border-gold/20 flex flex-col items-center justify-center p-4 text-center hover:border-gold transition-all cursor-help bg-deep-black/50 backdrop-blur-md"
-                          title={skill.desc}
-                        >
-                          <Atom className="text-gold mb-2" size={24} />
-                          <span className="text-[10px] font-mono text-white/40 mb-1">ГОД {skill.year}</span>
-                          <span className="text-xs font-medium text-white group-hover:text-gold transition-colors">{skill.name}</span>
-                          
-                          {/* Tooltip on hover */}
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-48 p-4 bg-deep-black border border-gold/30 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 shadow-2xl">
-                            <p className="text-[10px] text-white/80 leading-relaxed">{skill.desc}</p>
+              {/* Tree Branches */}
+              <div className="w-full max-w-6xl px-4">
+                {/* Mobile Toggle */}
+                <div className="md:hidden flex justify-center mb-12">
+                  <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 backdrop-blur-xl">
+                    <button 
+                      onClick={() => setMobileTreeBranch('progress')}
+                      className={`px-8 py-3 rounded-xl text-[10px] font-mono uppercase tracking-widest transition-all ${mobileTreeBranch === 'progress' ? 'bg-gold text-black shadow-[0_0_15px_rgba(212,175,55,0.3)]' : 'text-white/40'}`}
+                    >
+                      Прогресс
+                    </button>
+                    <button 
+                      onClick={() => setMobileTreeBranch('regress')}
+                      className={`px-8 py-3 rounded-xl text-[10px] font-mono uppercase tracking-widest transition-all ${mobileTreeBranch === 'regress' ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-white/40'}`}
+                    >
+                      Регресс
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-16 relative">
+                  {/* Vertical Divider for Desktop */}
+                  <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-white/10 to-transparent" />
+                  <div className={`${mobileTreeBranch === 'progress' ? 'flex' : 'hidden md:flex'} flex-col items-center`}>
+                    <h3 className="text-xs font-mono text-gold uppercase tracking-[0.4em] mb-12 flex items-center gap-3 bg-gold/5 px-6 py-2 rounded-full border border-gold/20">
+                      <TrendingUp size={16} /> Прогресс
+                    </h3>
+                    <div className="flex flex-col items-center gap-8 w-full">
+                      {gameState.skills.filter(s => s.type === 'progress').length > 0 ? (
+                        gameState.skills.filter(s => s.type === 'progress').map((skill, index) => (
+                          <div key={skill.id} className="w-full flex justify-center">
+                            <SkillCard skill={skill} index={index} color="gold" />
                           </div>
-                        </div>
-                      </motion.div>
-                    ))
-                  ) : (
-                    <div className="text-white/20 font-mono text-xs italic">История навыков пока пуста...</div>
-                  )}
+                        ))
+                      ) : (
+                        <div className="text-white/20 font-mono text-xs italic py-12">Ветка прогресса пока пуста...</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Regress Branch */}
+                  <div className={`${mobileTreeBranch === 'regress' ? 'flex' : 'hidden md:flex'} flex-col items-center`}>
+                    <h3 className="text-xs font-mono text-red-500 uppercase tracking-[0.4em] mb-12 flex items-center gap-3 bg-red-500/5 px-6 py-2 rounded-full border border-red-500/20">
+                      <TrendingDown size={16} /> Регресс
+                    </h3>
+                    <div className="flex flex-col items-center gap-8 w-full">
+                      {gameState.skills.filter(s => s.type === 'regress').length > 0 ? (
+                        gameState.skills.filter(s => s.type === 'regress').map((skill, index) => (
+                          <div key={skill.id} className="w-full flex justify-center">
+                            <SkillCard skill={skill} index={index} color="red" />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-white/20 font-mono text-xs italic py-12">Ветка регресса пока пуста...</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -1144,41 +1454,159 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer Motto */}
-      <footer className="fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center justify-center pointer-events-none">
-        <div className="bg-deep-black/80 backdrop-blur-md px-8 py-2 rounded-t-2xl border-t border-l border-r border-white/10">
-          <p className="text-[10px] md:text-xs font-mono text-gold/60 tracking-[0.4em] uppercase">
-            Ты не Бог, Ты — Наблюдатель
-          </p>
-        </div>
-      </footer>
 
-      {/* Mobile Navigation (Tab Bar) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-[60] h-20 bg-deep-black/90 backdrop-blur-xl border-t border-white/10 flex items-center justify-around px-4">
-        <button 
-          onClick={() => setActiveSection('genesis')}
-          className={`flex flex-col items-center gap-1 ${activeSection === 'genesis' ? 'text-gold' : 'text-white/40'}`}
-        >
-          <Globe size={20} />
-          <span className="text-[8px] font-mono uppercase">Генезис</span>
-        </button>
-        <button 
-          onClick={() => setActiveSection('fate')}
-          className={`flex flex-col items-center gap-1 ${activeSection === 'fate' ? 'text-gold' : 'text-white/40'}`}
-        >
-          <Sparkles size={20} />
-          <span className="text-[8px] font-mono uppercase">Судьба</span>
-        </button>
-        <button 
-          onClick={() => setActiveSection('progress')}
-          className={`flex flex-col items-center gap-1 ${activeSection === 'progress' ? 'text-gold' : 'text-white/40'}`}
-        >
-          <HistoryIcon size={20} />
-          <span className="text-[8px] font-mono uppercase">Прогресс</span>
-        </button>
-      </div>
       {/* Modals for Choice Flow */}
       <AnimatePresence>
+        {showYearSelectionModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="max-w-md w-full bg-transparent backdrop-blur-[10px] p-8 rounded-[32px] border border-white/10 shadow-2xl text-center"
+            >
+              <h3 className="text-xl font-light text-gold mb-6 uppercase tracking-widest">Сколько лет пройдет?</h3>
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-mono text-white/40 uppercase tracking-widest">Период развития</span>
+                  <span className="text-gold font-mono">{selectedYearsToPass} л.</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max={gameState.availableYears} 
+                  value={selectedYearsToPass}
+                  onChange={(e) => setSelectedYearsToPass(parseInt(e.target.value))}
+                  className="w-full accent-gold bg-white/10 h-1 rounded-full appearance-none cursor-pointer"
+                />
+                <div className="flex justify-between mt-2 text-[10px] font-mono text-white/20">
+                  <span>1 год</span>
+                  <span>{gameState.availableYears} лет</span>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowYearSelectionModal(false)}
+                  className="flex-1 py-3 bg-white/5 text-white/60 rounded-xl hover:bg-white/10 transition-all"
+                >
+                  ОТМЕНА
+                </button>
+                <button 
+                  onClick={() => {
+                    if (selectedChoiceIndex !== null) {
+                      handleFateChoice(selectedChoiceIndex, selectedYearsToPass);
+                      setShowYearSelectionModal(false);
+                    }
+                  }}
+                  className="flex-1 py-3 bg-gold text-black font-bold rounded-xl hover:bg-white transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+                >
+                  ПОДТВЕРДИТЬ
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {(isGenerating || generationError) && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-6"
+          >
+            <div className="max-w-md w-full text-center bg-transparent backdrop-blur-[10px] p-12 rounded-[40px] border border-white/10 shadow-2xl relative overflow-hidden">
+              {/* Radial Pulse Background */}
+              <motion.div 
+                animate={{ scale: [1, 1.5, 1], opacity: [0.1, 0.3, 0.1] }}
+                transition={{ duration: 3, repeat: Infinity }}
+                className="absolute inset-0 bg-gold/20 rounded-full blur-[100px] pointer-events-none"
+              />
+
+              {isGenerating ? (
+                <>
+                  <div className="relative w-32 h-32 mx-auto mb-8">
+                    {/* Rotating Progress Border */}
+                    <svg className="absolute inset-0 w-full h-full -rotate-90">
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="60"
+                        stroke="rgba(212, 175, 55, 0.1)"
+                        strokeWidth="4"
+                        fill="transparent"
+                      />
+                      <motion.circle
+                        cx="64"
+                        cy="64"
+                        r="60"
+                        stroke="#D4AF37"
+                        strokeWidth="4"
+                        fill="transparent"
+                        strokeDasharray="377"
+                        initial={{ strokeDashoffset: 377 }}
+                        animate={{ strokeDashoffset: 377 - (377 * (generationTimer / 60)) }}
+                        transition={{ duration: 1, ease: "linear" }}
+                      />
+                    </svg>
+                    
+                    {/* Logo */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <motion.div
+                        animate={{ 
+                          scale: [1, 1.1, 1],
+                          filter: ["drop-shadow(0 0 5px rgba(212,175,55,0.3))", "drop-shadow(0 0 20px rgba(212,175,55,0.7))", "drop-shadow(0 0 5px rgba(212,175,55,0.3))"]
+                        }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="relative"
+                      >
+                        <motion.img 
+                          src="https://i.ibb.co/VW4W5PQs/Ciivbut.png" 
+                          alt="Butterfly Logo" 
+                          className="w-20 h-20 object-contain"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                        />
+                      </motion.div>
+                    </div>
+                  </div>
+
+                  <h3 className="text-2xl font-light text-gold mb-4 uppercase tracking-widest relative z-10">Ткач судеб работает...</h3>
+                  <p className="text-white/60 mb-8 relative z-10">Нити времени переплетаются, создавая ваше будущее.</p>
+                  
+                  <p className="text-[10px] font-mono text-white/20 uppercase tracking-widest relative z-10">Ожидание: {generationTimer}с / 60с</p>
+                </>
+              ) : (
+                <div className="bg-white/5 border border-white/10 p-8 rounded-3xl">
+                  <ZapOff size={48} className="text-red-400 mx-auto mb-6" />
+                  <h3 className="text-xl font-light text-white mb-4 uppercase tracking-widest">Ткач немного устал</h3>
+                  <p className="text-white/60 text-sm mb-8 leading-relaxed">{generationError}</p>
+                  <div className="flex flex-col gap-3">
+                    <button 
+                      onClick={() => {
+                        setGenerationError(null);
+                      }}
+                      className="w-full py-4 bg-gold text-black font-bold rounded-xl hover:bg-white transition-all"
+                    >
+                      ПОПРОБОВАТЬ СНОВА
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setGenerationError(null);
+                        setIsGenerating(false);
+                      }}
+                      className="w-full py-4 bg-white/5 border border-white/10 text-white/60 rounded-xl hover:bg-white/10 transition-colors"
+                    >
+                      ВЕРНУТЬСЯ
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {showBonusNotify && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -1187,24 +1615,24 @@ export default function App() {
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="max-w-md w-full bg-white/5 border border-white/20 p-8 rounded-3xl text-center backdrop-blur-[10px] shadow-2xl"
+              className="max-w-md w-full bg-transparent backdrop-blur-[10px] border border-white/20 p-8 rounded-3xl text-center shadow-2xl"
             >
               <Rocket className="text-gold mx-auto mb-6" size={48} />
-              <h3 className="text-2xl font-light text-gold mb-4 uppercase tracking-tight">Доступен Прогресс!</h3>
+              <h3 className="text-2xl font-light text-gold mb-4 uppercase tracking-tight">Доступно Древо Жизни!</h3>
               <p className="text-white/80 text-sm leading-relaxed mb-8">
-                Для этого пути доступен бонус: <span className="text-gold font-bold">{gameState.pendingResult?.accelerationBonus.name}</span>. 
-                Перейдите на страницу <span className="text-gold">Прогресс</span>, чтобы активировать его. 
+                Для этого пути доступен бонус: <span className="text-gold font-bold">{gameState.pendingResult?.accelerationBonus?.name || 'Особый бонус'}</span>. 
+                Перейдите на страницу <span className="text-gold">Дерево жизни</span>, чтобы активировать его. 
                 Без бонуса шанс негативных последствий составляет 50%.
               </p>
               <div className="flex flex-col gap-3">
                 <button 
                   onClick={() => {
                     setShowBonusNotify(false);
-                    setActiveSection('progress');
+                    setActiveSection('tree');
                   }}
                   className="w-full py-4 bg-gold text-black font-bold rounded-xl hover:bg-white transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
                 >
-                  ПЕРЕЙТИ К ПРОГРЕССУ
+                  ПЕРЕЙТИ К ДЕРЕВУ ЖИЗНИ
                 </button>
                 <button 
                   onClick={() => {
@@ -1229,7 +1657,7 @@ export default function App() {
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="max-w-md w-full bg-white/5 border border-white/20 p-8 rounded-3xl text-center backdrop-blur-[10px] shadow-2xl"
+              className="max-w-md w-full bg-transparent backdrop-blur-[10px] border border-white/20 p-8 rounded-3xl text-center shadow-2xl"
             >
               {gameState.pendingResult?.populationChange >= 0 ? (
                 <Sparkles className="text-emerald-400 mx-auto mb-6" size={48} />
@@ -1237,6 +1665,18 @@ export default function App() {
                 <ZapOff className="text-red-400 mx-auto mb-6" size={48} />
               )}
               <h3 className="text-2xl font-light text-gold mb-4 uppercase tracking-tight">Последствия выбора</h3>
+              
+              {gameState.isBonusActive && (
+                <div className="mb-6 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+                  <p className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest flex items-center justify-center gap-2">
+                    <Sparkles size={12} /> 
+                    {gameState.pendingResult?.populationGrowthPercent < 0 
+                      ? 'Штрафы аннулированы на 50%' 
+                      : 'Бонусы удвоены'}
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-6 mb-8">
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                   <p className="text-[10px] font-mono text-white/40 uppercase mb-1">Изменение населения</p>
@@ -1246,7 +1686,7 @@ export default function App() {
                 </div>
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                   <p className="text-[10px] font-mono text-white/40 uppercase mb-1">Освоен навык</p>
-                  <p className="text-lg text-gold">{gameState.pendingResult?.acquiredSkill.name}</p>
+                  <p className="text-lg text-gold">{gameState.pendingResult?.acquiredSkill?.name || 'Новый навык'}</p>
                 </div>
               </div>
               <button 
@@ -1267,7 +1707,7 @@ export default function App() {
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="max-w-2xl w-full max-h-[80vh] overflow-y-auto custom-scrollbar bg-white/5 border border-white/20 p-8 md:p-12 rounded-3xl backdrop-blur-[10px] shadow-2xl"
+              className="max-w-2xl w-full max-h-[80vh] overflow-y-auto custom-scrollbar bg-transparent backdrop-blur-[10px] border border-white/20 p-8 md:p-12 rounded-3xl shadow-2xl"
             >
               <div className="flex items-center gap-3 mb-8 text-gold">
                 <HistoryIcon size={24} />
@@ -1276,7 +1716,7 @@ export default function App() {
               <div className="space-y-6 mb-12">
                 {gameState.chronicles.slice(-Math.max(1, selectedYearsToPass)).map((c, i) => (
                   <motion.div 
-                    key={i}
+                    key={`chronicle-modal-${c.year}-${i}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.1 }}
@@ -1299,7 +1739,190 @@ export default function App() {
             </motion.div>
           </motion.div>
         )}
+
+        {showWorldModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="max-w-4xl w-full bg-transparent backdrop-blur-[20px] border border-white/20 p-8 md:p-12 rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar"
+            >
+              <div className="flex justify-between items-start mb-8">
+                <div className="flex items-center gap-6 text-gold">
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden border border-gold/30 shadow-[0_0_20px_rgba(212,175,55,0.3)]">
+                    <img src={gameState.planet.image} alt={gameState.planet.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <h3 className="text-3xl font-light uppercase tracking-widest">{gameState.planet.name}</h3>
+                </div>
+                <button onClick={() => setShowWorldModal(false)} className="text-white/40 hover:text-white transition-colors">
+                  <ZapOff size={24} />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/10">
+                  <img 
+                    src={gameState.planet.image} 
+                    alt={gameState.planet.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                </div>
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Описание мира</h4>
+                  <p className="text-white/80 leading-relaxed text-sm">{gameState.planet.desc}</p>
+                </div>
+              </div>
+
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                    <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Характеристики среды</h4>
+                    <HabitatChart data={gameState.planet.habitat} color="#d4af37" />
+                  </div>
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10 flex flex-col justify-center gap-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/40 text-xs font-mono uppercase">Гравитация</span>
+                      <span className="text-gold font-mono">1.0g</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/40 text-xs font-mono uppercase">Атмосфера</span>
+                      <span className="text-gold font-mono">O2/N2</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/40 text-xs font-mono uppercase">Тип ядра</span>
+                      <span className="text-gold font-mono">Железо-никель</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">История мира</h4>
+                  <div className="text-white/70 leading-relaxed text-xs max-h-96 overflow-y-auto pr-4 custom-scrollbar whitespace-pre-line">
+                    {gameState.planet.history}
+                  </div>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => setShowWorldModal(false)}
+                className="w-full mt-8 py-4 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-xl transition-all font-mono uppercase tracking-widest"
+              >
+                ЗАКРЫТЬ
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showRaceModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="max-w-4xl w-full bg-transparent backdrop-blur-[20px] border border-white/20 p-8 md:p-12 rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar"
+            >
+              <div className="flex justify-between items-start mb-8">
+                <div className="flex items-center gap-6 text-gold">
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden border border-gold/30 shadow-[0_0_20px_rgba(212,175,55,0.3)]">
+                    <img src={gameState.race.image} alt={gameState.race.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <h3 className="text-3xl font-light uppercase tracking-widest">{gameState.race.name}</h3>
+                </div>
+                <button onClick={() => setShowRaceModal(false)} className="text-white/40 hover:text-white transition-colors">
+                  <ZapOff size={24} />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/10">
+                  <img 
+                    src={gameState.race.image} 
+                    alt={gameState.race.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                </div>
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Биологический профиль</h4>
+                  <p className="text-white/80 leading-relaxed text-sm mb-4">{gameState.race.desc}</p>
+                  <div className="flex gap-4">
+                    <span className="px-3 py-1 bg-gold/10 rounded-full text-[10px] font-mono text-gold uppercase border border-gold/20">{gameState.race.type}</span>
+                    <span className="px-3 py-1 bg-gold/10 rounded-full text-[10px] font-mono text-gold uppercase border border-gold/20">{gameState.race.trait}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                    <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Предпочтения среды</h4>
+                    <HabitatChart data={gameState.race.habitat} color="#6432c8" />
+                  </div>
+                  <RaceTable race={gameState.race} />
+                </div>
+                
+                <PlanetCompatibilityTable race={gameState.race} planet={gameState.planet} />
+
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Биология и Особенности</h4>
+                  <div className="text-white/70 leading-relaxed text-xs max-h-96 overflow-y-auto pr-4 custom-scrollbar whitespace-pre-line">
+                    {gameState.race.biology}
+                  </div>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => setShowRaceModal(false)}
+                className="w-full mt-8 py-4 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-xl transition-all font-mono uppercase tracking-widest"
+              >
+                ЗАКРЫТЬ
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
+
+      {/* Footer Motto */}
+      <footer className="fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center justify-center pointer-events-none">
+        <div className="bg-deep-black/80 backdrop-blur-md px-8 py-2 rounded-t-2xl border-t border-l border-r border-white/10">
+          <p className="text-[10px] md:text-xs font-mono text-gold/60 tracking-[0.4em] uppercase">
+            Ты не Бог, Ты — Наблюдатель
+          </p>
+        </div>
+      </footer>
+
+      {/* Mobile Navigation (Tab Bar) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-[60] h-16 bg-transparent backdrop-blur-[10px] border-t border-white/10 flex items-center justify-around px-4">
+        <button 
+          onClick={() => setActiveSection('genesis')}
+          className={`flex flex-col items-center gap-1 ${activeSection === 'genesis' ? 'text-gold' : 'text-white/40'}`}
+        >
+          <Globe size={18} />
+          <span className="text-[7px] font-mono uppercase">Генезис</span>
+        </button>
+        <button 
+          onClick={() => setActiveSection('fate')}
+          className={`flex flex-col items-center gap-1 ${activeSection === 'fate' ? 'text-gold' : 'text-white/40'}`}
+        >
+          <Sparkles size={18} />
+          <span className="text-[7px] font-mono uppercase">Судьба</span>
+        </button>
+        <button 
+          onClick={() => setActiveSection('tree')}
+          className={`flex flex-col items-center gap-1 ${activeSection === 'tree' ? 'text-gold' : 'text-white/40'}`}
+        >
+          <HistoryIcon size={18} />
+          <span className="text-[7px] font-mono uppercase">Дерево жизни</span>
+        </button>
+      </div>
     </div>
   );
 }
