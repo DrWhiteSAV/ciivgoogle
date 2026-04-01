@@ -117,9 +117,9 @@ const getEra = (year: number, pop: number) => {
 
 // --- Components ---
 
-const FlameBorder: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => {
+const FlameBorder: React.FC<{ children: React.ReactNode; className?: string; style?: React.CSSProperties }> = ({ children, className = "", style }) => {
   return (
-    <div className={`relative p-8 rounded-2xl ${className}`}>
+    <div className={`relative rounded-2xl ${className}`} style={style}>
       {/* Flame Animation Layers */}
       <div className="absolute inset-0 rounded-2xl border border-gold/30 shadow-[0_0_15px_rgba(212,175,55,0.2)]" />
       
@@ -285,19 +285,7 @@ const SpaceBackground: React.FC = () => {
       ctx.save();
       ctx.translate(centerX, centerY);
       ctx.rotate(time * 0.1);
-      for (let i = 0; i < 3; i++) {
-        ctx.rotate((Math.PI * 2) / 3);
-        const armGradient = ctx.createRadialGradient(
-          canvas.width * 0.2, 0, 0,
-          canvas.width * 0.2, 0, canvas.width * 0.4
-        );
-        armGradient.addColorStop(0, 'rgba(212, 175, 55, 0.03)');
-        armGradient.addColorStop(1, 'rgba(212, 175, 55, 0)');
-        ctx.fillStyle = armGradient;
-        ctx.beginPath();
-        ctx.ellipse(canvas.width * 0.2, 0, canvas.width * 0.4, canvas.width * 0.1, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // Removed 3 large ovals as requested
       ctx.restore();
 
       stars.forEach(star => {
@@ -561,7 +549,8 @@ export default function App() {
   const [showBonusNotify, setShowBonusNotify] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
   const [showChronicleModal, setShowChronicleModal] = useState(false);
-  const [secondsToNextYear, setSecondsToNextYear] = useState(60);
+  const [showGameOver, setShowGameOver] = useState(false);
+  const [secondsToNextYear, setSecondsToNextYear] = useState(59);
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
   const [showYearSelectionModal, setShowYearSelectionModal] = useState(false);
   const [generationTimer, setGenerationTimer] = useState(0);
@@ -574,13 +563,13 @@ export default function App() {
 
   // Observer Mode Logic
   useEffect(() => {
-    if (isObserverMode && activeSection === 'fate' && gameState.availableYears > 0 && !isGenerating && !gameState.pendingResult && !showResultModal && !showChronicleModal && !showYearSelectionModal) {
+    if (isObserverMode && gameState.availableYears > 0 && !isGenerating && !gameState.pendingResult && !showResultModal && !showChronicleModal && !showYearSelectionModal) {
       const randomChoice = Math.floor(Math.random() * gameState.choices.length);
       const years = gameState.availableYears;
       setSelectedYearsToPass(years);
       handleFateChoice(randomChoice, years);
     }
-  }, [isObserverMode, activeSection, gameState.availableYears, isGenerating, gameState.pendingResult, showResultModal, showChronicleModal, showYearSelectionModal]);
+  }, [isObserverMode, gameState.availableYears, isGenerating, gameState.pendingResult, showResultModal, showChronicleModal, showYearSelectionModal]);
 
   useEffect(() => {
     if (isObserverMode && gameState.pendingResult && !isGenerating) {
@@ -589,8 +578,9 @@ export default function App() {
         // Ensure modals are closed in observer mode
         setShowResultModal(false);
         setShowChronicleModal(false);
+        setShowBonusNotify(false); // Close Tree of Life modal in observer mode
         setSelectedYearsToPass(0);
-      }, 2000); // Slightly longer delay for visibility
+      }, 1500); 
       return () => clearTimeout(timer);
     }
   }, [isObserverMode, gameState.pendingResult, isGenerating]);
@@ -626,6 +616,7 @@ export default function App() {
     const interval = setInterval(() => {
       setSecondsToNextYear(prev => {
         if (prev <= 1) {
+          // Increment available years when timer hits zero
           setGameState(gs => ({
             ...gs,
             availableYears: gs.availableYears + 1
@@ -637,6 +628,8 @@ export default function App() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Removed the separate effect that was causing double increments
 
   // Generation timer
   useEffect(() => {
@@ -664,8 +657,15 @@ export default function App() {
     setGenerationError(null);
     const choice = gameState.choices[choiceIndex];
     
-    // Pre-determine outcome if no bonus is active
-    const outcomeType = gameState.isBonusActive ? 'positive' : (Math.random() > 0.5 ? 'positive' : 'negative');
+    // Success chance logic:
+    // Normal mode: 60% success (0.4 threshold)
+    // Observer mode: 75% success (0.25 threshold)
+    const baseThreshold = isObserverMode ? 0.25 : 0.4;
+    // Pity mechanic: lower stability increases success chance
+    const pityBonus = (100 - gameState.stability) / 200; // up to 0.5 bonus
+    const finalThreshold = Math.max(0.05, baseThreshold - pityBonus);
+    
+    const outcomeType = gameState.isBonusActive ? 'positive' : (Math.random() > finalThreshold ? 'positive' : 'negative');
     
     try {
       const { GoogleGenAI } = await import("@google/genai");
@@ -737,10 +737,20 @@ export default function App() {
       
       setGameState(prev => ({
         ...prev,
-        pendingResult: { ...result, choiceTitle: choice.title, outcomeType }
+        pendingResult: { 
+          ...result, 
+          accelerationBonus: isObserverMode ? null : result.accelerationBonus,
+          choiceTitle: choice.title, 
+          outcomeType 
+        }
       }));
 
-      setShowBonusNotify(true);
+      if (!isObserverMode) {
+        setShowBonusNotify(true);
+      } else {
+        // In observer mode, skip bonus notification and show result directly
+        setShowResultModal(true);
+      }
     } catch (error) {
       console.error("AI Generation failed:", error);
     } finally {
@@ -748,37 +758,61 @@ export default function App() {
     }
   };
 
+  const calculateFinalGrowth = (result: any, withBonus: boolean) => {
+    const baseGrowthPercent = result.populationGrowthPercent || 0;
+    const statFactor = (gameState.compatibility + gameState.stability) / 200; // 0.5 to 1.0
+    
+    let factor = (baseGrowthPercent / 100) * (0.7 + 0.3 * statFactor);
+
+    if (result.outcomeType === 'positive' && factor < 0) {
+      factor = Math.abs(factor) * 0.1;
+      if (factor === 0) factor = 0.01;
+    }
+    
+    if (result.outcomeType === 'negative' && factor > 0.02) {
+      factor = 0.01;
+    }
+
+    if (withBonus) {
+      if (factor < 0) factor *= 0.3;
+      else factor *= 1.5;
+    } else {
+      // We don't include the random "unforeseen circumstances" in the UI prediction
+      // to keep it clean, but we'll make them much rarer in the actual application.
+    }
+
+    if (result.outcomeType === 'positive' && factor < 0) factor = 0;
+    
+    return factor;
+  };
+
   const applyPendingResult = (withBonus: boolean) => {
     const result = gameState.pendingResult;
     if (!result) return;
 
-    // Calculate population growth based on percentage from AI
-    // Account for compatibility and stability
-    const baseGrowthPercent = result.populationGrowthPercent || 0;
-    const compatibilityMultiplier = gameState.compatibility / 100;
-    const stabilityMultiplier = gameState.stability / 100;
-    
-    let finalGrowthFactor = (baseGrowthPercent / 100) * compatibilityMultiplier * stabilityMultiplier;
+    // Use the exact same calculation as shown in the UI
+    const finalGrowthFactor = calculateFinalGrowth(result, withBonus);
 
-    // Bonus influence: 
-    // If bonus active, we mitigate losses or boost growth slightly
-    if (withBonus) {
-      if (finalGrowthFactor < 0) finalGrowthFactor *= 0.5; // Mitigate 50% of loss
-      else finalGrowthFactor *= 1.2; // Boost growth by 20%
-    } else {
-      // 50% chance of "unforeseen circumstances" if no bonus was used
-      if (Math.random() > 0.5) {
-        finalGrowthFactor -= 0.05; // Extra 5% loss due to lack of preparation
-      }
-    }
-
-    const populationChange = Math.floor(gameState.population * finalGrowthFactor);
+    const newPopRaw = gameState.population * (1 + finalGrowthFactor);
+    const newPop = Math.max(0, Math.floor(newPopRaw));
 
     setGameState(prev => {
       const newYear = prev.year + selectedYearsToPass + (withBonus ? 5 : 0);
-      const newPop = Math.max(1, Math.floor(prev.population + populationChange));
       const newEra = getEra(newYear, newPop);
       
+      // Update stability and compatibility based on outcome
+      let stabilityChange = result.outcomeType === 'positive' ? 2 : -4;
+      let compatibilityChange = result.outcomeType === 'positive' ? 1 : -2;
+      
+      // Bonus boost
+      if (withBonus && result.outcomeType === 'positive') {
+        stabilityChange += 3;
+        compatibilityChange += 2;
+      }
+
+      const newStability = Math.min(100, Math.max(0, prev.stability + stabilityChange));
+      const newCompatibility = Math.min(100, Math.max(0, prev.compatibility + compatibilityChange));
+
       const newSkill: Skill = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: result.acquiredSkill?.name || 'Новый навык',
@@ -791,6 +825,8 @@ export default function App() {
         ...prev,
         year: newYear,
         population: newPop,
+        stability: newStability,
+        compatibility: newCompatibility,
         era: newEra,
         availableYears: prev.availableYears - selectedYearsToPass,
         chronicles: [...prev.chronicles, ...(Array.isArray(result.chronicles) ? result.chronicles : [])],
@@ -798,7 +834,7 @@ export default function App() {
         choices: Array.isArray(result.newChoices) ? result.newChoices : prev.choices,
         history: [...prev.history, `Год ${newYear}: ${result.choiceTitle || 'Выбор сделан'}`],
         skills: [...prev.skills, newSkill],
-        accelerationBonus: result.accelerationBonus ? {
+        accelerationBonus: (result.accelerationBonus && !isObserverMode) ? {
           name: result.accelerationBonus.name,
           desc: result.accelerationBonus.description,
           tapsRequired: result.accelerationBonus.tapsRequired
@@ -809,8 +845,21 @@ export default function App() {
       };
     });
 
+    // Check for Game Over: Population < 50
+    if (newPop < 50) {
+      setShowGameOver(true);
+      setShowResultModal(false);
+      setShowChronicleModal(false);
+      setIsObserverMode(false);
+      return;
+    }
+
     setShowResultModal(false);
     setShowChronicleModal(true);
+  };
+
+  const resetGame = () => {
+    window.location.reload();
   };
 
   const accelerateTime = () => {
@@ -912,15 +961,15 @@ export default function App() {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 flex flex-col md:flex-row items-center justify-between px-4 md:px-12 py-3 bg-black/40 backdrop-blur-md border-b border-white/10">
         {/* Mobile Stats */}
-        <div className="flex md:hidden flex-wrap justify-center gap-x-3 gap-y-1 text-[7px] font-mono uppercase tracking-tighter mb-2">
-          <div className="flex gap-1"><span className="text-white/30">ПЛАНЕТА:</span> <span className="text-gold">{gameState.planet.name}</span></div>
-          <div className="flex gap-1"><span className="text-white/30">РАСА:</span> <span className="text-gold">{gameState.race.name}</span></div>
-          <div className="flex gap-1"><span className="text-white/30">ГОД:</span> <span className="text-gold">{gameState.year}</span></div>
-          <div className="flex gap-1"><span className="text-white/30">НАСЕЛЕНИЕ:</span> <span className="text-gold">{gameState.population.toLocaleString()}</span></div>
-          <div className="flex gap-1"><span className="text-white/30">ЭРА:</span> <span className="text-gold">{gameState.era}</span></div>
-          <div className="flex gap-1"><span className="text-white/30">СТАБ:</span> <span className="text-gold">{gameState.stability}%</span></div>
-          <div className="flex gap-1"><span className="text-white/30">СОВМ:</span> <span className="text-gold">{gameState.compatibility}%</span></div>
-          <div className="flex gap-1"><span className="text-white/30">РАБОТА:</span> <span className="text-gold">{gameState.availableYears} ({secondsToNextYear}с)</span></div>
+        <div className="grid md:hidden grid-cols-4 gap-x-2 gap-y-1 text-[9px] font-mono uppercase tracking-tighter mb-2 w-full">
+          <div className="flex flex-col items-center"><span className="text-white/30">ПЛАНЕТА</span> <span className="text-gold truncate w-full text-center">{gameState.planet.name}</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">РАСА</span> <span className="text-gold truncate w-full text-center">{gameState.race.name}</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">ГОД</span> <span className="text-gold">{gameState.year}</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">НАСЕЛЕНИЕ</span> <span className="text-gold">{gameState.population.toLocaleString()}</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">ЭРА</span> <span className="text-gold truncate w-full text-center">{gameState.era}</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">СТАБ</span> <span className="text-gold">{gameState.stability}%</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">СОВМ</span> <span className="text-gold">{gameState.compatibility}%</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">ГОДЫ В РАБОТЕ</span> <span className="text-gold">{gameState.availableYears}</span></div>
         </div>
 
         <div className="hidden md:flex items-center gap-6 text-[10px] font-mono uppercase tracking-widest">
@@ -1203,18 +1252,17 @@ export default function App() {
               </div>
 
               {/* 3. Situation Block (Transparent with flame border) */}
-              <FlameBorder className="w-full mb-16 bg-transparent">
-                <div className="text-center">
-                  <h3 className="text-xs font-mono text-gold/40 uppercase tracking-[0.3em] mb-4">Текущая ситуация</h3>
-                  <p className="text-white/90 text-lg md:text-xl leading-relaxed">
-                    {gameState.currentSituation}
-                  </p>
-                </div>
-              </FlameBorder>
+      <FlameBorder className={`w-full mb-16 bg-transparent md:p-8 p-[5%]`} style={{ fontSize: '100%' }}>
+        <div className="text-center">
+          <h3 className="text-xs font-mono text-gold/40 uppercase tracking-[0.3em] mb-4">Текущая ситуация</h3>
+          <p className="text-white/90 text-lg md:text-xl leading-snug md:leading-relaxed md:text-[100%] text-[70%]">
+            {gameState.currentSituation}
+          </p>
+        </div>
+      </FlameBorder>
 
               {/* 4. Choices with branches */}
               <div className="relative w-full mb-16">
-                {/* SVG Branches with animated orbs - Positioned between situation and choices */}
                 {/* SVG Branches with animated orbs - Positioned between situation and choices */}
                 <div className="absolute -top-16 left-0 w-full h-16 pointer-events-none -z-10">
                   <svg className="w-full h-full overflow-visible" viewBox="0 0 1000 100" preserveAspectRatio="none">
@@ -1255,10 +1303,11 @@ export default function App() {
                   </svg>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* 3 Buttons in 1 row */}
+                <div className="grid grid-cols-3 gap-2 md:gap-6 mb-6">
                   {gameState.choices.map((choice, i) => (
                     <button
-                      key={`choice-${i}`}
+                      key={`choice-btn-${i}`}
                       onMouseEnter={() => setHoveredChoice(i)}
                       onMouseLeave={() => setHoveredChoice(null)}
                       onClick={() => {
@@ -1267,16 +1316,29 @@ export default function App() {
                         if (selectedYearsToPass === 0) setSelectedYearsToPass(1);
                       }}
                       disabled={isGenerating || gameState.availableYears < 1}
-                      className={`group relative p-6 bg-transparent border border-white/10 rounded-2xl transition-all hover:bg-gold/10 hover:border-gold/50 text-center flex flex-col items-center gap-3 ${
+                      className={`group relative p-3 md:p-6 bg-transparent border border-white/10 rounded-xl md:rounded-2xl transition-all hover:bg-gold/10 hover:border-gold/50 text-center flex flex-col items-center justify-center min-h-[60px] md:min-h-[100px] ${
                         isGenerating || gameState.availableYears < 1 ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
-                      <div className="text-[10px] font-mono text-gold uppercase tracking-widest">{choice.title}</div>
-                      <div className="text-sm text-white/60 group-hover:text-white transition-colors">{choice.desc}</div>
+                      <div className="text-[8px] md:text-[10px] font-mono text-gold uppercase tracking-widest leading-tight">{choice.title}</div>
                       {hoveredChoice === i && (
-                        <motion.div layoutId="choice-glow" className="absolute inset-0 bg-gold/5 rounded-2xl blur-xl" />
+                        <motion.div layoutId="choice-glow" className="absolute inset-0 bg-gold/5 rounded-xl md:rounded-2xl blur-xl" />
                       )}
                     </button>
+                  ))}
+                </div>
+
+                {/* 3 Text blocks for paths */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                  {gameState.choices.map((choice, i) => (
+                    <div 
+                      key={`choice-desc-${i}`}
+                      className={`p-4 rounded-xl border border-white/5 bg-white/5 transition-all ${hoveredChoice === i ? 'border-gold/30 bg-gold/5' : ''}`}
+                    >
+                      <div className="text-[70%] md:text-sm text-white/60 leading-tight md:leading-relaxed">
+                        {choice.desc}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1301,7 +1363,7 @@ export default function App() {
                     >
                       <div className="absolute left-3 top-2 w-2 h-2 rounded-full bg-gold shadow-[0_0_10px_rgba(212,175,55,0.5)]" />
                       <div className="text-[10px] font-mono text-gold/40 mb-1">ГОД {c.year}</div>
-                      <p className="text-sm text-white/70 leading-relaxed">{c.event}</p>
+                      <p className="md:text-sm text-[70%] text-white/70 leading-tight md:leading-relaxed">{c.event}</p>
                     </motion.div>
                   ))}
                   
@@ -1524,6 +1586,51 @@ export default function App() {
           </motion.div>
         )}
 
+        {/* Game Over Modal */}
+        {showGameOver && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black p-6 overflow-y-auto"
+          >
+            <div className="max-w-2xl w-full text-center space-y-8 py-12">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 1 }}
+              >
+                <h2 className="text-5xl md:text-7xl font-display text-red-600 uppercase tracking-widest mb-4">
+                  Цивилизация погибла
+                </h2>
+                <div className="h-px w-full bg-gradient-to-r from-transparent via-red-600 to-transparent mb-8" />
+              </motion.div>
+
+              <div className="space-y-6 text-white/70 font-serif italic text-lg leading-relaxed">
+                <p>
+                  Нити судьбы оборвались. Популяция вашей расы сократилась до критического минимума, 
+                  недостаточного для поддержания генетического разнообразия и социальной структуры.
+                </p>
+                <p>
+                  История {gameState.race.name} на планете {gameState.planet.name} подошла к концу в {gameState.year} году. 
+                  Ваши достижения и ошибки станут лишь пылью в бесконечном космосе.
+                </p>
+              </div>
+
+              <div className="pt-12 space-y-4">
+                <p className="text-gold/40 font-mono text-xs uppercase tracking-[0.3em] mb-8">
+                  Титры: Ткач Судеб CIIV
+                </p>
+                <button
+                  onClick={resetGame}
+                  className="px-12 py-4 bg-white text-black font-bold uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all rounded-full"
+                >
+                  Начать новый цикл
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {(isGenerating || generationError) && (
           <motion.div 
             initial={{ opacity: 0 }}
@@ -1695,8 +1802,9 @@ export default function App() {
               <div className="space-y-6 mb-8">
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                   <p className="text-[10px] font-mono text-white/40 uppercase mb-1">Изменение населения</p>
-                  <p className={`text-2xl font-mono ${gameState.pendingResult?.populationGrowthPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {gameState.pendingResult?.populationGrowthPercent > 0 ? '+' : ''}{gameState.pendingResult?.populationGrowthPercent}%
+                  <p className={`text-2xl font-mono ${calculateFinalGrowth(gameState.pendingResult, gameState.isBonusActive) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {calculateFinalGrowth(gameState.pendingResult, gameState.isBonusActive) > 0 ? '+' : ''}
+                    {(calculateFinalGrowth(gameState.pendingResult, gameState.isBonusActive) * 100).toFixed(1)}%
                   </p>
                 </div>
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10">
@@ -1928,7 +2036,7 @@ export default function App() {
           className={`flex flex-col items-center gap-1 ${activeSection === 'fate' ? 'text-gold' : 'text-white/40'}`}
         >
           <Sparkles size={18} />
-          <span className="text-[7px] font-mono uppercase">Судьба</span>
+          <span className="text-[7px] font-mono uppercase">Ткач Судеб</span>
         </button>
         <button 
           onClick={() => setActiveSection('tree')}
