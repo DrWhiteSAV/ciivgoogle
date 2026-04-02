@@ -1740,10 +1740,13 @@ export default function App() {
                     )}
                   </div>
                 ) : (
-                  <div className="p-8 rounded-3xl border border-white/10 bg-white/5 text-center backdrop-blur-[10px]">
-                    <ZapOff className="text-white/20 mx-auto mb-4" size={32} />
-                    <h3 className="text-xl font-light text-white/20 mb-2">Нет активных бонусов</h3>
-                    <p className="text-white/40 text-xs">Сделайте выбор в Ткаче Судеб, чтобы получить бонус</p>
+                  <div 
+                    onClick={() => setActiveSection('fate')}
+                    className="p-8 rounded-3xl border border-white/10 bg-white/5 text-center backdrop-blur-[10px] cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all group"
+                  >
+                    <ZapOff className="text-white/20 mx-auto mb-4 group-hover:text-gold/40 transition-colors" size={32} />
+                    <h3 className="text-xl font-light text-white/20 mb-2 group-hover:text-gold/60 transition-colors">Нет активных бонусов</h3>
+                    <p className="text-white/40 text-xs group-hover:text-white/60 transition-colors">Сделайте выбор в Ткаче Судеб, чтобы получить бонус</p>
                   </div>
                 )}
               </div>
