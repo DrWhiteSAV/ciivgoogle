@@ -14,13 +14,18 @@
 
   /* Custom scrollbar for some elements if needed */
   ::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
+  }
+  @media (max-width: 768px) {
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
   }
   ::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-gold/20 rounded-full;
+    @apply bg-gold/50 rounded-full;
   }
 }
 
@@ -38,6 +43,29 @@
     background: rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(10px);
   }
+  .border-light-animation {
+    position: relative;
+    z-index: 1;
+  }
+  .border-light-animation::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    padding: 1px;
+    border-radius: inherit;
+    background: conic-gradient(from 0deg, transparent 0%, transparent 40%, rgba(212, 175, 55, 0.8) 50%, transparent 60%, transparent 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: rotateLight 4s linear infinite;
+    pointer-events: none;
+    z-index: 10;
+  }
+}
+
+@keyframes rotateLight {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* SVG Energy Flow Animation */

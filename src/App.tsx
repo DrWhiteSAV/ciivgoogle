@@ -29,10 +29,12 @@ import {
   TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowLeft,
   Activity,
   Heart,
   Baby,
-  Skull
+  Skull,
+  X
 } from 'lucide-react';
 import { 
   Radar, 
@@ -407,11 +409,145 @@ const SkillCard = React.memo(({ skill, index, color }: { skill: Skill, index: nu
   </motion.div>
 ));
 
-const HabitatChart = React.memo(({ data, color }: { data: Habitat, color: string }) => {
-  const [isMounted, setIsMounted] = useState(false);
+const StatInfoWindow: React.FC<{ 
+  info: { x: number; y: number; title: string; desc: string }; 
+  onClose: () => void 
+}> = ({ info, onClose }) => {
+  const [isMobile, setIsMobile] = useState(false);
+  
   useEffect(() => {
-    const timer = setTimeout(() => setIsMounted(true), 50);
-    return () => clearTimeout(timer);
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      className="fixed z-[500] pointer-events-none flex flex-col items-center justify-center text-center p-4 select-none"
+      style={{
+        top: isMobile ? '50%' : info.y,
+        left: isMobile ? '50%' : info.x,
+        transform: isMobile ? 'translate(-50%, -50%)' : 'translate(0, -100%)',
+        marginTop: isMobile ? 0 : -40
+      }}
+    >
+      <span className="text-sm font-mono text-gold uppercase tracking-[0.3em] font-bold glow-gold mb-2 drop-shadow-[0_0_10px_rgba(212,175,55,0.8)]">
+        {info.title}
+      </span>
+      <p className="text-[11px] text-white font-mono uppercase font-bold tracking-widest max-w-[220px] leading-tight drop-shadow-[0_0_12px_rgba(0,0,0,1)] drop-shadow-[0_0_4px_rgba(0,0,0,1)]">
+        {info.desc}
+      </p>
+    </motion.div>
+  );
+};
+
+const FullscreenImage: React.FC<{ src: string; alt: string; onClose: () => void }> = ({ src, alt, onClose }) => (
+  <motion.div 
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 md:p-12"
+    onClick={onClose}
+  >
+    <button 
+      onClick={onClose}
+      className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors z-[210]"
+    >
+      <X size={32} />
+    </button>
+    <motion.img 
+      initial={{ scale: 0.9 }}
+      animate={{ scale: 1 }}
+      src={src} 
+      alt={alt} 
+      className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+      referrerPolicy="no-referrer"
+      onClick={(e) => e.stopPropagation()}
+    />
+  </motion.div>
+);
+
+const PlanetImageFull: React.FC<{ planet: any; className?: string; opacity?: number; onClick?: () => void }> = ({ planet, className = "", opacity = 1, onClick }) => (
+  <div className={`relative w-full ${className}`}>
+    <div className="text-center mb-3">
+      <span className="text-[16px] md:text-[24px] font-mono text-gold uppercase tracking-widest glow-gold">
+        {planet.name}
+      </span>
+    </div>
+    <div 
+      className="relative aspect-[1280/714] w-full overflow-hidden rounded-[10px] border border-white/10 cursor-pointer border-light-animation" 
+      style={{ opacity: opacity * 0.8 }}
+      onClick={onClick}
+    >
+      <img src={planet.image} alt={planet.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+    </div>
+  </div>
+);
+
+const RaceImageFull: React.FC<{ race: any; className?: string; opacity?: number; onClick?: () => void }> = ({ race, className = "", opacity = 1, onClick }) => (
+  <div className={`relative w-full ${className}`}>
+    {/* Label above the image */}
+    <div className="text-center mb-3">
+      <span className="text-[16px] md:text-[24px] font-mono text-gold uppercase tracking-widest glow-gold">
+        {race.name}
+      </span>
+    </div>
+    <div 
+      className="relative aspect-[1280/714] w-full overflow-hidden rounded-[10px] border border-white/10 cursor-pointer border-light-animation" 
+      style={{ opacity: opacity * 0.8 }}
+      onClick={onClick}
+    >
+      <img src={race.image} alt={race.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+    </div>
+  </div>
+);
+
+const RaceImageMini: React.FC<{ race: any; className?: string; onClick?: () => void }> = ({ race, className = "", onClick }) => (
+  <div className={`relative w-full ${className}`}>
+    {/* Label above the image */}
+    <div className="text-center mb-3">
+      <span className="text-[14px] md:text-[20px] font-mono text-gold uppercase tracking-widest glow-gold">
+        {race.name}
+      </span>
+    </div>
+    <div 
+      className="relative aspect-square w-full overflow-hidden rounded-[10px] border border-white/10 cursor-pointer border-light-animation"
+      style={{ opacity: 0.8 }}
+      onClick={onClick}
+    >
+      <img src={race.image} alt={race.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+    </div>
+  </div>
+);
+
+const HabitatChart = React.memo(({ data, color, onStatClick, onStatHide }: { 
+  data: Habitat, 
+  color: string, 
+  onStatClick?: (e: React.MouseEvent, title: string, desc: string) => void,
+  onStatHide?: () => void
+}) => {
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      if (!entries.length) return;
+      const { width, height } = entries[0].contentRect;
+      // Only update if we have real dimensions to avoid Recharts warnings
+      if (width > 0 && height > 0) {
+        setDimensions({ width, height });
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   const chartData = useMemo(() => [
@@ -423,45 +559,81 @@ const HabitatChart = React.memo(({ data, color }: { data: Habitat, color: string
     { subject: 'Рес', A: data.res, fullMark: 100, desc: 'Доступность ресурсов' },
   ], [data]);
 
-  if (!isMounted) {
-    return <div className="w-full h-48 flex items-center justify-center text-white/5 text-[10px] font-mono uppercase tracking-widest">Загрузка...</div>;
-  }
+  const CustomTick = (props: any) => {
+    const { x, y, payload } = props;
+    const item = chartData.find(d => d.subject === payload.value);
+    
+    return (
+      <g 
+        transform={`translate(${x},${y})`} 
+        className="group cursor-pointer"
+        style={{ pointerEvents: 'all' }}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onStatClick?.(e as any, item?.subject || '', item?.desc || '');
+        }}
+        onPointerUp={() => onStatHide?.()}
+        onPointerLeave={() => onStatHide?.()}
+      >
+        <text x={0} y={0} dy={-10} textAnchor="middle" fill="#ffffff60" fontSize={10} className="uppercase">
+          {payload.value}
+        </text>
+        <text x={0} y={10} textAnchor="middle" fill={color} fontSize={10} fontWeight="bold" className="font-mono">
+          {item?.A}
+        </text>
+      </g>
+    );
+  };
 
   return (
-    <div className="w-full flex flex-col items-center min-w-0">
-      <div className="w-full h-48 min-w-0 flex items-center justify-center relative overflow-hidden">
-        <ResponsiveContainer width="100%" height={180} minWidth={0} minHeight={0}>
-          <RadarChart cx="50%" cy="50%" outerRadius="60%" data={chartData}>
-            <PolarGrid stroke="#ffffff20" />
-            <PolarAngleAxis 
-              dataKey="subject" 
-              tick={{ fill: '#ffffff60', fontSize: 10 }} 
-              isAnimationActive={false}
-            />
-            <Radar
-              name="Habitat"
-              dataKey="A"
-              stroke={color}
-              fill={color}
-              fillOpacity={0.5}
-              isAnimationActive={false}
-              animationDuration={0}
-            />
-          </RadarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="grid grid-cols-3 gap-2 w-full mt-2 px-4">
-        {chartData.map(item => (
-          <div key={item.subject} className="flex flex-col items-center border border-white/5 rounded p-1 bg-white/5 group relative cursor-help">
-            <span className="text-[8px] text-white/30 uppercase">{item.subject}</span>
-            <span className="text-[10px] font-mono text-gold">{item.A}</span>
-            
-            {/* Tooltip */}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-24 p-2 bg-black/90 border border-white/10 rounded text-[8px] text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center backdrop-blur-md">
-              {item.desc}
-            </div>
+    <div className="w-full flex flex-col items-center min-w-0 py-2">
+      <div ref={containerRef} className="w-full h-52 min-w-0 relative overflow-hidden flex items-center justify-center" style={{ minHeight: '208px' }}>
+        {!dimensions && (
+          <div className="text-white/5 text-[10px] font-mono uppercase tracking-widest">
+            Инициализация...
           </div>
-        ))}
+        )}
+        {dimensions && (
+          <ResponsiveContainer width={dimensions.width} height={dimensions.height}>
+            <RadarChart cx="50%" cy="50%" outerRadius="60%" data={chartData}>
+              <PolarGrid stroke="#ffffff20" />
+              <PolarAngleAxis 
+                dataKey="subject" 
+                tick={<CustomTick />}
+                isAnimationActive={false}
+              />
+              <Radar
+                name="Habitat"
+                dataKey="A"
+                stroke={color}
+                fill={color}
+                fillOpacity={0.5}
+                isAnimationActive={false}
+                animationDuration={0}
+                dot={(props: any) => {
+                  const { cx, cy, payload } = props;
+                  return (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={10}
+                      fill={color}
+                      fillOpacity={0.8}
+                      className="cursor-pointer"
+                      style={{ pointerEvents: 'all' }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        onStatClick?.(e as any, payload.subject, payload.desc);
+                      }}
+                      onPointerUp={() => onStatHide?.()}
+                      onPointerLeave={() => onStatHide?.()}
+                    />
+                  );
+                }}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );
@@ -559,6 +731,25 @@ export default function App() {
 
   const [showWorldModal, setShowWorldModal] = useState(false);
   const [showRaceModal, setShowRaceModal] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<{ src: string; alt: string } | null>(null);
+  const [statInfoWindow, setStatInfoWindow] = useState<{ x: number; y: number; title: string; desc: string } | null>(null);
+
+  const handleStatClick = React.useCallback((e: React.MouseEvent, title: string, desc: string) => {
+    e.stopPropagation();
+    setStatInfoWindow({
+      x: e.clientX,
+      y: e.clientY,
+      title,
+      desc
+    });
+  }, []);
+
+  const handleStatHide = React.useCallback(() => {
+    setStatInfoWindow(null);
+  }, []);
+
+  // Removed global click listener to allow hold-to-view logic without immediate closing
+
   const mainContainerRef = useRef<HTMLDivElement>(null);
 
   // Observer Mode Logic
@@ -873,80 +1064,121 @@ export default function App() {
 
   if (setupPhase !== 'done') {
     return (
-      <div className="relative min-h-screen flex flex-col items-center justify-center p-6 overflow-hidden">
+      <div className="relative h-screen flex flex-col items-center justify-start px-[3%] py-5 overflow-hidden">
         <SpaceBackground />
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-4xl bg-transparent border border-white/10 p-8 md:p-12 rounded-3xl shadow-[0_0_50px_rgba(212,175,55,0.05)]"
+          className="w-full max-w-4xl flex flex-col bg-transparent p-[1px] md:p-4 rounded-3xl max-h-full"
         >
-          <div className="text-center mb-12">
-            <img src="https://i.ibb.co/D0mRFhJ/civilogo.png" alt="Logo" className="h-16 mx-auto mb-6 glow-gold" />
-            <h1 className="text-3xl md:text-5xl font-light glow-gold mb-4">
+          <div className="text-center mt-0 mb-0 relative py-0 flex-shrink-0 bg-transparent border border-white/10 rounded-2xl">
+            {setupPhase === 'race' && (
+              <button 
+                onClick={() => setSetupPhase('planet')}
+                className="absolute top-1/2 -translate-y-1/2 left-4 text-gold/60 hover:text-gold flex items-center gap-2 font-mono text-[9px] uppercase tracking-widest transition-all group z-10"
+              >
+                <ArrowLeft size={10} className="group-hover:-translate-x-1 transition-transform" /> НАЗАД
+              </button>
+            )}
+            <h1 className="text-xl md:text-3xl font-light glow-gold mb-[1px] leading-tight">
               {setupPhase === 'planet' ? 'Выберите мир' : 'Выберите расу'}
             </h1>
-            <p className="text-white/40 font-mono text-xs uppercase tracking-widest">
+            <p className="text-white/40 font-mono text-[9px] uppercase tracking-widest leading-tight">
               {setupPhase === 'planet' ? 'Где начнется ваша история?' : 'Кто станет венцом творения?'}
             </p>
           </div>
 
           <div 
             key={setupPhase}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar"
+            className="grid grid-cols-1 md:grid-cols-2 gap-[2%] flex-1 overflow-y-auto pr-1 custom-scrollbar"
           >
             {setupPhase === 'planet' ? (
               PLANETS.map((p) => (
-                <button
+                <div
                   key={p.id}
-                  onClick={() => {
-                    setGameState(prev => ({ ...prev, planet: p }));
-                    setSetupPhase('race');
-                  }}
-                  className="group flex flex-col p-6 bg-transparent border border-white/10 rounded-2xl text-left transition-all hover:bg-gold/10 hover:border-gold/50 min-w-0"
+                  className="flex flex-col p-3 bg-transparent border border-white/10 rounded-2xl text-left transition-all min-w-0"
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-16 bg-white/5 rounded-lg group-hover:bg-gold/20 transition-colors overflow-hidden border border-white/10">
-                        <img src={p.image} alt={p.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
-                      </div>
-                      <span className="text-lg font-medium text-gold group-hover:glow-gold">{p.name}</span>
-                    </div>
+                  <div className="mb-2">
+                    <PlanetImageFull 
+                      planet={p} 
+                      className="hover:border-gold/50 transition-all" 
+                      onClick={() => setFullscreenImage({ src: p.image, alt: p.name })}
+                    />
                   </div>
-                  <p className="text-xs text-white/50 leading-relaxed mb-4">{p.desc}</p>
-                  <HabitatChart data={p.habitat} color="#d4af37" />
-                </button>
+                  <p className="text-[11px] text-white/50 leading-snug mb-2">{p.desc}</p>
+                  
+                  <div className="space-y-2">
+                    <HabitatChart data={p.habitat} color="#d4af37" onStatClick={handleStatClick} onStatHide={handleStatHide} />
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setGameState(prev => ({ ...prev, planet: p }));
+                      setSetupPhase('race');
+                    }}
+                    className="mt-3 w-full py-2 bg-transparent border border-gold/50 text-gold rounded-xl transition-all hover:bg-gold/20 font-mono uppercase tracking-widest text-[10px] border-glow-gold glow-gold"
+                  >
+                    Выбрать этот мир
+                  </button>
+                </div>
               ))
             ) : (
               RACES.map((r) => (
-                <button
+                <div
                   key={r.id}
-                  onClick={() => {
-                    setGameState(prev => ({ ...prev, race: r }));
-                    setSetupPhase('done');
-                  }}
-                  className="group flex flex-col p-6 bg-transparent border border-white/10 rounded-2xl text-left transition-all hover:bg-gold/10 hover:border-gold/50 min-w-0"
+                  className="flex flex-col p-3 bg-transparent border border-white/10 rounded-2xl text-left transition-all min-w-0"
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-16 bg-white/5 rounded-lg group-hover:bg-gold/20 transition-colors overflow-hidden border border-white/10">
-                        <img src={r.image} alt={r.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
-                      </div>
-                      <span className="text-lg font-medium text-gold group-hover:glow-gold">{r.name}</span>
-                    </div>
+                  <div className="mb-2">
+                    <RaceImageFull 
+                      race={r} 
+                      className="hover:border-gold/50 transition-all" 
+                      onClick={() => setFullscreenImage({ src: r.image, alt: r.name })}
+                    />
                   </div>
-                  <div className="text-[10px] font-mono text-white/30 uppercase mb-4">{r.type} | {r.trait}</div>
-                  <p className="text-xs text-white/50 leading-relaxed mb-6">{r.desc}</p>
+                  <div className="text-[9px] font-mono text-white/30 uppercase mb-2">{r.type} | {r.trait}</div>
+                  <p className="text-[11px] text-white/50 leading-snug mb-2">{r.desc}</p>
                   
-                  <div className="space-y-4">
-                    <HabitatChart data={r.habitat} color="#6432c8" />
+                  <div className="space-y-2">
+                    <HabitatChart data={r.habitat} color="#6432c8" onStatClick={handleStatClick} onStatHide={handleStatHide} />
                     <RaceTable race={r} />
                     <PlanetCompatibilityTable race={r} planet={gameState.planet} />
                   </div>
-                </button>
+
+                  <button
+                    onClick={() => {
+                      setGameState(prev => ({ ...prev, race: r }));
+                      setSetupPhase('done');
+                    }}
+                    className="mt-3 w-full py-2 bg-transparent border border-gold/50 text-gold rounded-xl transition-all hover:bg-gold/20 font-mono uppercase tracking-widest text-[10px] border-glow-gold glow-gold"
+                  >
+                    Вплести в полотно
+                  </button>
+                </div>
               ))
             )}
           </div>
         </motion.div>
+
+        {/* Fullscreen Image Viewer */}
+        <AnimatePresence>
+          {fullscreenImage && (
+            <FullscreenImage 
+              src={fullscreenImage.src} 
+              alt={fullscreenImage.alt} 
+              onClose={() => setFullscreenImage(null)} 
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Stat Info Window */}
+        <AnimatePresence>
+          {statInfoWindow && (
+            <StatInfoWindow 
+              info={statInfoWindow} 
+              onClose={() => setStatInfoWindow(null)} 
+            />
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -959,16 +1191,16 @@ export default function App() {
       <SpaceBackground />
 
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex flex-col md:flex-row items-center justify-between px-4 md:px-12 py-3 bg-black/40 backdrop-blur-md border-b border-white/10">
+      <header className="fixed top-0 left-0 right-0 z-50 flex flex-col md:flex-row items-center justify-between px-4 md:px-12 pt-2 pb-[3px] bg-black/40 backdrop-blur-md border-b border-x border-white/10 md:border-x-0 rounded-b-2xl md:rounded-none">
         {/* Mobile Stats */}
-        <div className="grid md:hidden grid-cols-4 gap-x-2 gap-y-1 text-[9px] font-mono uppercase tracking-tighter mb-2 w-full">
+        <div className="grid md:hidden grid-cols-4 gap-x-2 gap-y-1 text-[9px] font-mono uppercase tracking-tighter w-full">
           <div className="flex flex-col items-center"><span className="text-white/30">ПЛАНЕТА</span> <span className="text-gold truncate w-full text-center">{gameState.planet.name}</span></div>
           <div className="flex flex-col items-center"><span className="text-white/30">РАСА</span> <span className="text-gold truncate w-full text-center">{gameState.race.name}</span></div>
-          <div className="flex flex-col items-center"><span className="text-white/30">ГОД</span> <span className="text-gold">{gameState.year}</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">ГОД ЦИВИЛИЗАЦИИ</span> <span className="text-gold">{gameState.year}</span></div>
           <div className="flex flex-col items-center"><span className="text-white/30">НАСЕЛЕНИЕ</span> <span className="text-gold">{gameState.population.toLocaleString()}</span></div>
           <div className="flex flex-col items-center"><span className="text-white/30">ЭРА</span> <span className="text-gold truncate w-full text-center">{gameState.era}</span></div>
-          <div className="flex flex-col items-center"><span className="text-white/30">СТАБ</span> <span className="text-gold">{gameState.stability}%</span></div>
-          <div className="flex flex-col items-center"><span className="text-white/30">СОВМ</span> <span className="text-gold">{gameState.compatibility}%</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">СТАБИЛЬНОСТЬ</span> <span className="text-gold">{gameState.stability}%</span></div>
+          <div className="flex flex-col items-center"><span className="text-white/30">СОВМЕСТИМОСТЬ</span> <span className="text-gold">{gameState.compatibility}%</span></div>
           <div className="flex flex-col items-center"><span className="text-white/30">ГОДЫ В РАБОТЕ</span> <span className="text-gold">{gameState.availableYears}</span></div>
         </div>
 
@@ -1058,88 +1290,32 @@ export default function App() {
               transition={{ duration: 0.8, ease: "easeOut" }}
               className="flex flex-col items-center text-center w-full"
             >
-              <div className="relative mb-12 group">
+              {/* 1. Large Logo */}
+              <div className="relative mb-12 group w-full max-w-2xl">
                 <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   animate={{ 
-                    filter: ["drop-shadow(0 0 20px rgba(212,175,55,0.3))", "drop-shadow(0 0 50px rgba(212,175,55,0.6))", "drop-shadow(0 0 20px rgba(212,175,55,0.3))"] 
+                    filter: ["drop-shadow(0 0 20px rgba(212,175,55,0.3))", "drop-shadow(0 0 60px rgba(212,175,55,0.7))", "drop-shadow(0 0 20px rgba(212,175,55,0.3))"],
+                    scale: [1, 1.05, 1]
                   }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                  className="w-72 h-72 md:w-[400px] md:h-[400px] flex items-center justify-center relative"
+                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-full flex flex-col items-center justify-center relative cursor-pointer"
+                  onClick={() => setActiveSection('fate')}
                 >
-                  <img 
-                    src="https://i.ibb.co/D0mRFhJ/civilogo.png" 
-                    alt="CIIV Logo Large" 
-                    className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
-                    referrerPolicy="no-referrer"
-                  />
-                  
-                  {/* Scan Line */}
-                  <motion.div 
-                    className="absolute inset-x-0 h-px bg-gold/50 shadow-[0_0_15px_rgba(212,175,55,0.8)] z-10"
-                    animate={{ top: ['10%', '90%', '10%'] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                  />
+                  <img src="https://i.ibb.co/D0mRFhJ/civilogo.png" alt="Logo" className="w-full max-w-xl mx-auto glow-gold-lg" />
                 </motion.div>
               </div>
 
+              {/* 2. Civilization and World Name */}
               <h1 className="text-4xl md:text-7xl font-light tracking-tighter mb-4 glow-gold">
                 Цивилизация {gameState.race.name}
               </h1>
               <p className="text-gold/60 font-mono text-sm tracking-[0.3em] uppercase mb-12">
                 Мир: {gameState.planet.name} | Эра: {gameState.era}
               </p>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 w-full max-w-4xl border-t border-b border-white/10 py-12 mb-16">
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Год</span>
-                  <span className="text-2xl md:text-4xl font-mono text-gold">{gameState.year}</span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Население</span>
-                  <span className="text-2xl md:text-4xl font-mono text-gold">
-                    {gameState.population >= 1000000 
-                      ? (gameState.population / 1000000).toFixed(2) + 'M' 
-                      : gameState.population.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Эра</span>
-                  <span className="text-2xl md:text-4xl font-mono text-gold">{gameState.era}</span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Стабильность</span>
-                  <span className="text-2xl md:text-4xl font-mono text-gold">{gameState.stability}%</span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Совместимость</span>
-                  <span className="text-2xl md:text-4xl font-mono text-gold">{gameState.compatibility}%</span>
-                </div>
-              </div>
 
-              {/* Biological Info Blocks */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl mb-16">
-                <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left">
-                  <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Репродукция</h4>
-                  <div className="space-y-3 text-xs">
-                    <div className="flex justify-between"><span className="text-white/40">Тип:</span> <span>{(gameState.race as any).reproduction.type}</span></div>
-                    <div className="flex justify-between"><span className="text-white/40">Срок:</span> <span>{(gameState.race as any).reproduction.term}</span></div>
-                    <div className="flex justify-between"><span className="text-white/40">Потомство:</span> <span>{(gameState.race as any).reproduction.offspring}</span></div>
-                  </div>
-                </div>
-                <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left">
-                  <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Развитие</h4>
-                  <div className="space-y-3 text-xs">
-                    <div className="flex justify-between"><span className="text-white/40">Взросление:</span> <span>{(gameState.race as any).development.maturation}</span></div>
-                    <div className="flex justify-between"><span className="text-white/40">Срок жизни:</span> <span>{(gameState.race as any).development.lifespan}</span></div>
-                  </div>
-                </div>
-                <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left min-w-0">
-                  <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Среда обитания</h4>
-                  <HabitatChart data={gameState.race.habitat as Habitat} color="#d4af37" />
-                </div>
-              </div>
-
-              {/* World and Race Info Cards */}
+              {/* 3. World and Race Blocks */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl mb-16">
                 <motion.div 
                   initial={{ opacity: 0, x: -20 }}
@@ -1164,20 +1340,94 @@ export default function App() {
                   initial={{ opacity: 0, x: 20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   onClick={() => setShowRaceModal(true)}
-                  className="bg-transparent border border-white/10 p-8 rounded-3xl text-left hover:border-gold/30 transition-all group cursor-pointer"
+                  className="bg-transparent border border-white/10 rounded-3xl text-left hover:border-gold/30 transition-all group cursor-pointer overflow-hidden p-0"
                 >
-                  <div className="flex items-center gap-4 mb-4 text-gold">
-                    <div className="w-16 h-16 rounded-xl overflow-hidden border border-gold/20 shadow-[0_0_15px_rgba(212,175,55,0.2)]">
-                      <img src={gameState.race.image} alt={gameState.race.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <div className="relative aspect-square w-full border-light-animation">
+                    <img src={gameState.race.image} alt={gameState.race.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="absolute bottom-8 left-8">
+                      <h3 className="text-2xl font-light text-gold glow-gold">Раса: {gameState.race.name}</h3>
+                      <div className="flex gap-2 mt-2">
+                        <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">{gameState.race.type}</span>
+                        <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">{gameState.race.trait}</span>
+                      </div>
                     </div>
-                    <h3 className="text-xl font-light">Раса: {gameState.race.name}</h3>
-                  </div>
-                  <p className="text-white/60 text-sm leading-relaxed mb-6">{gameState.race.desc}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-3 py-1 bg-transparent rounded-full text-[10px] font-mono text-white/40 uppercase border border-white/5">{gameState.race.type}</span>
-                    <span className="px-3 py-1 bg-transparent rounded-full text-[10px] font-mono text-white/40 uppercase border border-white/5">{gameState.race.trait}</span>
                   </div>
                 </motion.div>
+              </div>
+
+              {/* 4. Reproduction, Development, Habitat (Chart) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl mb-16">
+                <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left">
+                  <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Репродукция</h4>
+                  <div className="space-y-3 text-xs">
+                    <div className="flex justify-between"><span className="text-white/40">Тип:</span> <span>{(gameState.race as any).reproduction.type}</span></div>
+                    <div className="flex justify-between"><span className="text-white/40">Срок:</span> <span>{(gameState.race as any).reproduction.term}</span></div>
+                    <div className="flex justify-between"><span className="text-white/40">Потомство:</span> <span>{(gameState.race as any).reproduction.offspring}</span></div>
+                  </div>
+                </div>
+                <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left">
+                  <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Развитие</h4>
+                  <div className="space-y-3 text-xs">
+                    <div className="flex justify-between"><span className="text-white/40">Взросление:</span> <span>{(gameState.race as any).development.maturation}</span></div>
+                    <div className="flex justify-between"><span className="text-white/40">Срок жизни:</span> <span>{(gameState.race as any).development.lifespan}</span></div>
+                  </div>
+                </div>
+                <div className="bg-transparent border border-white/10 p-6 rounded-2xl text-left min-w-0">
+                  <h4 className="text-[10px] font-mono text-gold uppercase tracking-widest mb-4">Среда обитания</h4>
+                  <HabitatChart data={gameState.race.habitat as Habitat} color="#d4af37" onStatClick={handleStatClick} onStatHide={handleStatHide} />
+                </div>
+              </div>
+
+              {/* 5. Statistics Block (2 rows) */}
+              <div className="flex flex-col w-full max-w-4xl border-t border-b border-white/10 py-12 mb-16 gap-12">
+                {/* Row 1: Year, Years in work */}
+                <div className="grid grid-cols-2 gap-4 md:gap-8">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Год</span>
+                    <span className="text-xl md:text-4xl font-mono text-gold">{gameState.year}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Годы в работе</span>
+                    <span className="text-xl md:text-4xl font-mono text-gold">{gameState.availableYears}</span>
+                  </div>
+                </div>
+
+                {/* Row 2: Stability, Population, Compatibility */}
+                <div className="grid grid-cols-3 gap-4 md:gap-8">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Стабильность</span>
+                    <span className="text-xl md:text-4xl font-mono text-gold">{gameState.stability}%</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Население</span>
+                    <span className="text-xl md:text-4xl font-mono text-gold">
+                      {gameState.population >= 1000000 
+                        ? (gameState.population / 1000000).toFixed(2) + 'M' 
+                        : gameState.population.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Совместимость</span>
+                    <span className="text-xl md:text-4xl font-mono text-gold">{gameState.compatibility}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 6. Navigation Buttons */}
+              <div className="flex flex-col md:flex-row items-center gap-6 w-full max-w-4xl mb-12">
+                <button
+                  onClick={() => setActiveSection('fate')}
+                  className="w-full md:flex-1 py-6 bg-gold/10 border border-gold/30 text-gold rounded-2xl font-mono uppercase tracking-[0.2em] text-sm hover:bg-gold/20 transition-all glow-gold border-glow-gold"
+                >
+                  Ткач Судеб
+                </button>
+                <button
+                  onClick={() => setActiveSection('tree')}
+                  className="w-full md:flex-1 py-6 bg-white/5 border border-white/10 text-white/60 rounded-2xl font-mono uppercase tracking-[0.2em] text-sm hover:bg-white/10 transition-all"
+                >
+                  Дерево Жизни
+                </button>
               </div>
             </motion.div>
           )}
@@ -1208,7 +1458,8 @@ export default function App() {
                     filter: ["drop-shadow(0 0 20px rgba(212,175,55,0.2))", "drop-shadow(0 0 40px rgba(212,175,55,0.5))", "drop-shadow(0 0 20px rgba(212,175,55,0.2))"] 
                   }}
                   transition={{ duration: 3, repeat: Infinity }}
-                  className="w-48 h-48 flex items-center justify-center"
+                  className="w-48 h-48 flex items-center justify-center cursor-pointer hover:scale-105 transition-transform active:scale-95"
+                  onClick={() => setIsObserverMode(!isObserverMode)}
                 >
                   <img 
                     src="https://i.ibb.co/VW4W5PQs/Ciivbut.png" 
@@ -1217,36 +1468,11 @@ export default function App() {
                     referrerPolicy="no-referrer"
                   />
                 </motion.div>
-                
-                {/* Tree Beam SVG */}
-                <svg className="absolute top-full left-1/2 -translate-x-1/2 w-full h-32 overflow-visible pointer-events-none">
-                  <motion.line
-                    x1="50%" y1="0" x2="50%" y2="100%"
-                    stroke="url(#beamGradient)"
-                    strokeWidth="4"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 1.5 }}
-                  />
-                  <motion.circle
-                    cx="50%" cy="100%" r="4"
-                    fill="#D4AF37"
-                    animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  />
-                  <defs>
-                    <linearGradient id="beamGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#D4AF37" />
-                      <stop offset="50%" stopColor="#D4AF37" stopOpacity="0.5" />
-                      <stop offset="100%" stopColor="transparent" />
-                    </linearGradient>
-                  </defs>
-                </svg>
               </div>
 
               {/* 2. Motto */}
-              <div className="text-center mb-12">
-                <p className="text-gold/80 italic text-lg md:text-xl max-w-2xl mx-auto">
+              <div className="text-center mt-[3px] mb-[3px]">
+                <p className="text-gold/80 italic text-[9px] md:text-[10px] leading-tight max-w-2xl mx-auto">
                   <TypewriterText text="Даже взмах крыла бабочки может привести к тайфуну на другом конце света" />
                 </p>
               </div>
@@ -1303,11 +1529,67 @@ export default function App() {
                   </svg>
                 </div>
 
-                {/* 3 Buttons in 1 row */}
-                <div className="grid grid-cols-3 gap-2 md:gap-6 mb-6">
+                {/* Mobile Version: Separate Titles and Descriptions */}
+                <div className="md:hidden space-y-6">
+                  {/* 3 Buttons in 1 row (Titles) */}
+                  <div className="grid grid-cols-3 gap-2 mb-6">
+                    {gameState.choices.map((choice, i) => (
+                      <button
+                        key={`choice-btn-mobile-${i}`}
+                        onMouseEnter={() => setHoveredChoice(i)}
+                        onMouseLeave={() => setHoveredChoice(null)}
+                        onClick={() => {
+                          setSelectedChoiceIndex(i);
+                          setShowYearSelectionModal(true);
+                          if (selectedYearsToPass === 0) setSelectedYearsToPass(1);
+                        }}
+                        disabled={isGenerating || gameState.availableYears < 1}
+                        className={`group relative p-3 bg-transparent border border-white/10 rounded-xl transition-all hover:bg-gold/10 hover:border-gold/50 text-center flex flex-col items-center justify-center min-h-[60px] ${
+                          isGenerating || gameState.availableYears < 1 ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <div className="text-[8px] font-mono text-gold uppercase tracking-widest leading-tight">
+                          <span className="mr-1">{i + 1}.</span>
+                          {choice.title}
+                        </div>
+                        {hoveredChoice === i && (
+                          <motion.div layoutId="choice-glow-mobile" className="absolute inset-0 bg-gold/5 rounded-xl blur-xl" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 3 Text blocks for paths (Descriptions) */}
+                  <div className="grid grid-cols-1 gap-4">
+                    {gameState.choices.map((choice, i) => (
+                      <div 
+                        key={`choice-desc-mobile-${i}`}
+                        onMouseEnter={() => setHoveredChoice(i)}
+                        onMouseLeave={() => setHoveredChoice(null)}
+                        onClick={() => {
+                          if (isGenerating || gameState.availableYears < 1) return;
+                          setSelectedChoiceIndex(i);
+                          setShowYearSelectionModal(true);
+                          if (selectedYearsToPass === 0) setSelectedYearsToPass(1);
+                        }}
+                        className={`p-4 rounded-xl border border-white/5 bg-white/5 transition-all cursor-pointer hover:bg-gold/10 hover:border-gold/30 ${
+                          hoveredChoice === i ? 'border-gold/30 bg-gold/5' : ''
+                        } ${isGenerating || gameState.availableYears < 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <div className="text-[70%] text-white/60 leading-tight flex gap-3">
+                          <span className="text-gold font-mono flex-shrink-0">{i + 1}.</span>
+                          <span>{choice.desc}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* PC Version: Combined Buttons */}
+                <div className="hidden md:grid md:grid-cols-3 gap-6 mb-6">
                   {gameState.choices.map((choice, i) => (
                     <button
-                      key={`choice-btn-${i}`}
+                      key={`choice-combined-pc-${i}`}
                       onMouseEnter={() => setHoveredChoice(i)}
                       onMouseLeave={() => setHoveredChoice(null)}
                       onClick={() => {
@@ -1316,29 +1598,21 @@ export default function App() {
                         if (selectedYearsToPass === 0) setSelectedYearsToPass(1);
                       }}
                       disabled={isGenerating || gameState.availableYears < 1}
-                      className={`group relative p-3 md:p-6 bg-transparent border border-white/10 rounded-xl md:rounded-2xl transition-all hover:bg-gold/10 hover:border-gold/50 text-center flex flex-col items-center justify-center min-h-[60px] md:min-h-[100px] ${
+                      className={`group relative p-8 bg-transparent border border-white/10 rounded-3xl transition-all hover:bg-gold/10 hover:border-gold/50 text-left flex flex-col gap-4 min-h-[180px] ${
                         isGenerating || gameState.availableYears < 1 ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      } ${hoveredChoice === i ? 'border-gold/50 bg-gold/5' : ''}`}
                     >
-                      <div className="text-[8px] md:text-[10px] font-mono text-gold uppercase tracking-widest leading-tight">{choice.title}</div>
-                      {hoveredChoice === i && (
-                        <motion.div layoutId="choice-glow" className="absolute inset-0 bg-gold/5 rounded-xl md:rounded-2xl blur-xl" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* 3 Text blocks for paths */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                  {gameState.choices.map((choice, i) => (
-                    <div 
-                      key={`choice-desc-${i}`}
-                      className={`p-4 rounded-xl border border-white/5 bg-white/5 transition-all ${hoveredChoice === i ? 'border-gold/30 bg-gold/5' : ''}`}
-                    >
-                      <div className="text-[70%] md:text-sm text-white/60 leading-tight md:leading-relaxed">
+                      <div className="text-[10px] font-mono text-gold uppercase tracking-widest leading-tight">
+                        <span className="mr-1">{i + 1}.</span>
+                        {choice.title}
+                      </div>
+                      <div className="text-sm text-white/60 leading-relaxed">
                         {choice.desc}
                       </div>
-                    </div>
+                      {hoveredChoice === i && (
+                        <motion.div layoutId="choice-glow-pc" className="absolute inset-0 bg-gold/5 rounded-3xl blur-2xl" />
+                      )}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -1383,8 +1657,15 @@ export default function App() {
               exit={{ opacity: 0, x: -20 }}
               className="flex flex-col items-center w-full"
             >
-              <div className="text-center mb-16">
-                <h2 className="text-4xl md:text-6xl font-light glow-gold mb-4">Дерево жизни</h2>
+              <div className="text-center mb-16 w-full">
+                <h2 className="text-4xl md:text-6xl font-light glow-gold mb-8">Дерево жизни</h2>
+                <div className="w-full max-w-2xl mx-auto mb-8">
+                  <RaceImageFull 
+                    race={gameState.race} 
+                    opacity={0.7} 
+                    onClick={() => setFullscreenImage({ src: gameState.race.image, alt: gameState.race.name })}
+                  />
+                </div>
                 <p className="text-white/40 font-mono text-xs uppercase tracking-[0.4em]">Путь эволюции и деградации</p>
               </div>
 
@@ -1843,10 +2124,10 @@ export default function App() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.1 }}
-                    className="flex gap-6 border-l border-gold/20 pl-6 py-2"
+                    className="flex flex-col gap-1 border-l border-gold/20 pl-6 py-2"
                   >
-                    <span className="text-gold font-mono text-sm min-w-[60px]">ГОД {c.year}</span>
-                    <p className="text-white/80 text-sm leading-relaxed">{c.event}</p>
+                    <span className="text-gold font-mono text-sm">ГОД {c.year}</span>
+                    <p className="text-white/80 text-[80%] leading-relaxed">{c.event}</p>
                   </motion.div>
                 ))}
               </div>
@@ -1866,46 +2147,38 @@ export default function App() {
         {showWorldModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-transparent backdrop-blur-sm p-4 md:p-6"
           >
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="max-w-4xl w-full bg-transparent backdrop-blur-[20px] border border-white/20 p-8 md:p-12 rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar"
+              className="max-w-4xl w-full bg-transparent backdrop-blur-[30px] border border-white/20 rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar relative"
             >
-              <div className="flex justify-between items-start mb-8">
-                <div className="flex items-center gap-6 text-gold">
-                  <div className="w-24 h-24 rounded-2xl overflow-hidden border border-gold/30 shadow-[0_0_20px_rgba(212,175,55,0.3)]">
-                    <img src={gameState.planet.image} alt={gameState.planet.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  </div>
-                  <h3 className="text-3xl font-light uppercase tracking-widest">{gameState.planet.name}</h3>
-                </div>
-                <button onClick={() => setShowWorldModal(false)} className="text-white/40 hover:text-white transition-colors">
-                  <ZapOff size={24} />
-                </button>
+              <button 
+                onClick={() => setShowWorldModal(false)} 
+                className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors z-[160] bg-black/40 p-2 rounded-full backdrop-blur-sm"
+              >
+                <ZapOff size={24} />
+              </button>
+
+              <div className="w-full aspect-video border-b border-white/10 overflow-hidden border-light-animation">
+                <img 
+                  src={gameState.planet.image} 
+                  alt={gameState.planet.name} 
+                  className="w-full h-full object-cover opacity-80"
+                  referrerPolicy="no-referrer"
+                />
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/10">
-                  <img 
-                    src={gameState.planet.image} 
-                    alt={gameState.planet.name} 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+              <div className="p-8 md:p-12">
+                <div className="flex items-center gap-6 text-gold mb-8">
+                  <h3 className="text-3xl font-light uppercase tracking-widest glow-gold">{gameState.planet.name}</h3>
                 </div>
-                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                  <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Описание мира</h4>
-                  <p className="text-white/80 leading-relaxed text-sm">{gameState.planet.desc}</p>
-                </div>
-              </div>
 
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10 min-w-0">
-                    <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Характеристики среды</h4>
-                    <HabitatChart data={gameState.planet.habitat} color="#d4af37" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                    <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Описание мира</h4>
+                    <p className="text-white/80 leading-relaxed text-sm">{gameState.planet.desc}</p>
                   </div>
                   <div className="p-6 bg-white/5 rounded-2xl border border-white/10 flex flex-col justify-center gap-4">
                     <div className="flex justify-between items-center">
@@ -1923,20 +2196,27 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                  <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">История мира</h4>
-                  <div className="text-white/70 leading-relaxed text-xs max-h-96 overflow-y-auto pr-4 custom-scrollbar whitespace-pre-line">
-                    {gameState.planet.history}
+                <div className="space-y-8">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10 min-w-0">
+                    <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Характеристики среды</h4>
+                    <HabitatChart data={gameState.planet.habitat} color="#d4af37" onStatClick={handleStatClick} onStatHide={handleStatHide} />
+                  </div>
+
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                    <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">История мира</h4>
+                    <div className="text-white/70 leading-relaxed text-xs max-h-96 overflow-y-auto pr-4 custom-scrollbar whitespace-pre-line">
+                      {gameState.planet.history}
+                    </div>
                   </div>
                 </div>
+                
+                <button 
+                  onClick={() => setShowWorldModal(false)}
+                  className="w-full mt-8 py-4 bg-transparent border border-gold/30 text-gold hover:bg-gold/10 rounded-xl transition-all font-mono uppercase tracking-widest border-glow-gold glow-gold"
+                >
+                  ЗАКРЫТЬ
+                </button>
               </div>
-              
-              <button 
-                onClick={() => setShowWorldModal(false)}
-                className="w-full mt-8 py-4 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-xl transition-all font-mono uppercase tracking-widest"
-              >
-                ЗАКРЫТЬ
-              </button>
             </motion.div>
           </motion.div>
         )}
@@ -1944,86 +2224,117 @@ export default function App() {
         {showRaceModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-transparent backdrop-blur-sm p-4 md:p-6"
           >
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="max-w-4xl w-full bg-transparent backdrop-blur-[20px] border border-white/20 p-8 md:p-12 rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar"
+              className="max-w-4xl w-full bg-transparent backdrop-blur-[30px] border border-white/0 md:border-white/20 border-y-0 md:border-y rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar relative"
             >
-              <div className="flex justify-between items-start mb-8">
-                <div className="flex items-center gap-6 text-gold">
-                  <div className="w-24 h-24 rounded-2xl overflow-hidden border border-gold/30 shadow-[0_0_20px_rgba(212,175,55,0.3)]">
-                    <img src={gameState.race.image} alt={gameState.race.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  </div>
-                  <h3 className="text-3xl font-light uppercase tracking-widest">{gameState.race.name}</h3>
-                </div>
-                <button onClick={() => setShowRaceModal(false)} className="text-white/40 hover:text-white transition-colors">
-                  <ZapOff size={24} />
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/10">
-                  <img 
-                    src={gameState.race.image} 
-                    alt={gameState.race.name} 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                </div>
-                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                  <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Биологический профиль</h4>
-                  <p className="text-white/80 leading-relaxed text-sm mb-4">{gameState.race.desc}</p>
-                  <div className="flex gap-4">
-                    <span className="px-3 py-1 bg-gold/10 rounded-full text-[10px] font-mono text-gold uppercase border border-gold/20">{gameState.race.type}</span>
-                    <span className="px-3 py-1 bg-gold/10 rounded-full text-[10px] font-mono text-gold uppercase border border-gold/20">{gameState.race.trait}</span>
-                  </div>
-                </div>
+              <button 
+                onClick={() => setShowRaceModal(false)} 
+                className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors z-[160] bg-black/40 p-2 rounded-full backdrop-blur-sm"
+              >
+                <ZapOff size={24} />
+              </button>
+
+              <div 
+                className="w-full aspect-[1280/714] overflow-hidden border-b border-white/10 cursor-pointer border-light-animation rounded-b-2xl mb-0"
+                onClick={() => setFullscreenImage({ src: gameState.race.image, alt: gameState.race.name })}
+              >
+                <img 
+                  src={gameState.race.image} 
+                  alt={gameState.race.name} 
+                  className="w-full h-full object-cover opacity-80"
+                  referrerPolicy="no-referrer"
+                />
               </div>
 
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10 min-w-0">
-                    <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Предпочтения среды</h4>
-                    <HabitatChart data={gameState.race.habitat} color="#6432c8" />
+              <div className="px-[4%] md:px-12 py-8 md:py-12">
+                <div className="flex justify-between items-start mt-[10px] mb-[10px]">
+                  <div className="w-full text-center">
+                    <h3 className="text-3xl font-light uppercase tracking-widest text-gold glow-gold">{gameState.race.name}</h3>
+                    <div className="text-[10px] font-mono text-white/30 uppercase mt-2 tracking-[0.3em]">{gameState.race.type} | {gameState.race.trait}</div>
                   </div>
-                  <RaceTable race={gameState.race} />
                 </div>
                 
-                <PlanetCompatibilityTable race={gameState.race} planet={gameState.planet} />
-
-                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                  <h4 className="text-xs font-mono text-gold uppercase mb-4 tracking-widest">Биология и Особенности</h4>
-                  <div className="text-white/70 leading-relaxed text-xs max-h-96 overflow-y-auto pr-4 custom-scrollbar whitespace-pre-line">
-                    {gameState.race.biology}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                    <h4 className="text-[10px] font-mono text-gold uppercase mb-4 tracking-widest">Биологический профиль</h4>
+                    <p className="text-white/80 leading-relaxed text-sm mb-6">{gameState.race.desc}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-3 py-1 bg-white/5 rounded-full text-[10px] font-mono text-gold/60 uppercase border border-gold/10">{gameState.race.type}</span>
+                      <span className="px-3 py-1 bg-white/5 rounded-full text-[10px] font-mono text-gold/60 uppercase border border-gold/10">{gameState.race.trait}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <PlanetCompatibilityTable race={gameState.race} planet={gameState.planet} />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10 min-w-0">
+                    <h4 className="text-[10px] font-mono text-gold uppercase mb-4 tracking-widest">Среда обитания</h4>
+                    <HabitatChart data={gameState.race.habitat as Habitat} color="#d4af37" onStatClick={handleStatClick} onStatHide={handleStatHide} />
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <RaceTable race={gameState.race} />
+                  </div>
+                </div>
+
+                <div className="w-full mb-8">
+                  <div className="p-6 bg-white/5 rounded-2xl border border-white/10 min-h-[320px]">
+                    <h4 className="text-[10px] font-mono text-gold uppercase mb-4 tracking-widest">Биология и особенности</h4>
+                    <div className="text-white/70 leading-relaxed text-xs pr-4 custom-scrollbar whitespace-pre-line">
+                      {gameState.race.history || (gameState.race as any).biology}
+                    </div>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => setShowRaceModal(false)}
+                  className="w-full mt-8 py-4 bg-transparent border border-gold/30 text-gold hover:bg-gold/10 rounded-xl transition-all font-mono uppercase tracking-widest border-glow-gold glow-gold"
+                >
+                  ЗАКРЫТЬ
+                </button>
               </div>
-              
-              <button 
-                onClick={() => setShowRaceModal(false)}
-                className="w-full mt-8 py-4 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-xl transition-all font-mono uppercase tracking-widest"
-              >
-                ЗАКРЫТЬ
-              </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Footer Motto */}
-      <footer className="fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center justify-center pointer-events-none">
-        <div className="bg-deep-black/80 backdrop-blur-md px-8 py-2 rounded-t-2xl border-t border-l border-r border-white/10">
+      <footer className="fixed bottom-0 left-0 right-0 z-[70] flex items-end justify-center pointer-events-none">
+        <div className="bg-transparent px-8 py-2 rounded-t-2xl pointer-events-auto">
           <p className="text-[10px] md:text-xs font-mono text-gold/60 tracking-[0.4em] uppercase">
             Ты не Бог, Ты — Наблюдатель
           </p>
         </div>
       </footer>
 
+      {/* Fullscreen Image Viewer */}
+      <AnimatePresence>
+        {fullscreenImage && (
+          <FullscreenImage 
+            src={fullscreenImage.src} 
+            alt={fullscreenImage.alt} 
+            onClose={() => setFullscreenImage(null)} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Stat Info Window */}
+      <AnimatePresence>
+        {statInfoWindow && (
+          <StatInfoWindow 
+            info={statInfoWindow} 
+            onClose={() => setStatInfoWindow(null)} 
+          />
+        )}
+      </AnimatePresence>
+
       {/* Mobile Navigation (Tab Bar) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-[60] h-16 bg-transparent backdrop-blur-[10px] border-t border-white/10 flex items-center justify-around px-4">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-[60] h-16 bg-black/40 backdrop-blur-[10px] border-t border-x border-white/10 flex items-start justify-around px-4 pt-[2px] rounded-t-2xl">
         <button 
           onClick={() => setActiveSection('genesis')}
           className={`flex flex-col items-center gap-1 ${activeSection === 'genesis' ? 'text-gold' : 'text-white/40'}`}
