@@ -162,10 +162,10 @@ export const RACES = [
     desc: 'Высокая скорость обучения и колонизации.', 
     icon: <User className="text-blue-300" />,
     image: 'https://i.ibb.co/dsFShLzs/ludi.jpg',
-    biology: LORE_LONG('Люди', 'вид гуманоидов'),
+    history: LORE_LONG('Люди', 'вид гуманоидов'),
     reproduction: { type: 'Живородящие', term: '9 месяцев', offspring: '1-2 ребенка' },
     development: { maturation: '18 лет', lifespan: '80 лет', features: 'Высокая адаптивность к разным средам' },
-    stats: { avgGrowth: 1.2, avgMortality: 0.8 },
+    stats: { growth: 1.2, mortality: 0.8 },
     habitat: { temp: 50, grav: 50, atmo: 50, rad: 20, humi: 50, res: 60 }
   },
   { 
@@ -176,10 +176,10 @@ export const RACES = [
     desc: 'Медленное развитие, но невероятная прочность.', 
     icon: <Gem className="text-emerald-400" />,
     image: 'https://i.ibb.co/gMShWGVY/cristali.jpg',
-    biology: LORE_LONG('Кремниевые', 'вид неоргаников'),
+    history: LORE_LONG('Кремниевые', 'вид неоргаников'),
     reproduction: { type: 'Кристаллизация', term: '5 лет', offspring: '1 кристалл' },
     development: { maturation: '50 лет', lifespan: '1000+ лет', features: 'Устойчивость к радиации и вакууму' },
-    stats: { avgGrowth: 0.2, avgMortality: 0.05 },
+    stats: { growth: 0.2, mortality: 0.05 },
     habitat: { temp: 80, grav: 70, atmo: 10, rad: 90, humi: 5, res: 80 }
   },
   { 
@@ -190,10 +190,10 @@ export const RACES = [
     desc: 'Существа из чистой энергии, игнорирующие физические преграды.', 
     icon: <Ghost className="text-purple-300" />,
     image: 'https://i.ibb.co/gZPVt24s/efiri.jpg',
-    biology: LORE_LONG('Эфириалы', 'вид энергоформ'),
+    history: LORE_LONG('Эфириалы', 'вид энергоформ'),
     reproduction: { type: 'Деление', term: 'Мгновенно', offspring: '1 сгусток энергии' },
     development: { maturation: '1 год', lifespan: 'Бессмертны', features: 'Игнорирование физических преград' },
-    stats: { avgGrowth: 0.5, avgMortality: 0.1 },
+    stats: { growth: 0.5, mortality: 0.1 },
     habitat: { temp: 50, grav: 10, atmo: 0, rad: 100, humi: 0, res: 90 }
   },
   { 
@@ -204,10 +204,10 @@ export const RACES = [
     desc: 'Единая сеть сознания, охватывающая всю планету.', 
     icon: <Network className="text-green-400" />,
     image: 'https://i.ibb.co/LB5C2nh/Gribi.jpg',
-    biology: LORE_LONG('Мицелианцы', 'вид грибницы'),
+    history: LORE_LONG('Мицелианцы', 'вид грибницы'),
     reproduction: { type: 'Спороношение', term: '1 месяц', offspring: '1000+ спор' },
     development: { maturation: '5 лет', lifespan: '40 лет', features: 'Коллективный разум всей грибницы' },
-    stats: { avgGrowth: 3.5, avgMortality: 2.5 },
+    stats: { growth: 3.5, mortality: 2.5 },
     habitat: { temp: 40, grav: 40, atmo: 70, rad: 30, humi: 90, res: 50 }
   },
   { 
@@ -218,10 +218,10 @@ export const RACES = [
     desc: 'Мастера подводных городов и морских ресурсов.', 
     icon: <Fish className="text-blue-400" />,
     image: 'https://i.ibb.co/ym4vg423/ribi.jpg',
-    biology: LORE_LONG('Акварианцы', 'вид амфибий'),
+    history: LORE_LONG('Акварианцы', 'вид амфибий'),
     reproduction: { type: 'Икрометание', term: '3 месяца', offspring: '50-100 мальков' },
     development: { maturation: '10 лет', lifespan: '120 лет', features: 'Дыхание под водой и на суше' },
-    stats: { avgGrowth: 2.0, avgMortality: 1.5 },
+    stats: { growth: 2.0, mortality: 1.5 },
     habitat: { temp: 30, grav: 60, atmo: 80, rad: 20, humi: 100, res: 70 }
   },
   { 
@@ -232,10 +232,10 @@ export const RACES = [
     desc: 'Слияние плоти и машин для выживания в пустоте.', 
     icon: <Smartphone className="text-slate-400" />,
     image: 'https://i.ibb.co/ddDj71W/kiberi.jpg',
-    biology: LORE_LONG('Кибер-кочевники', 'вид киборгов'),
+    history: LORE_LONG('Кибер-кочевники', 'вид киборгов'),
     reproduction: { type: 'Сборка', term: '6 месяцев', offspring: '1 модуль' },
     development: { maturation: '2 года', lifespan: '200 лет', features: 'Технопатия и заменяемые детали' },
-    stats: { avgGrowth: 0.8, avgMortality: 0.4 },
+    stats: { growth: 0.8, mortality: 0.4 },
     habitat: { temp: 50, grav: 50, atmo: 30, rad: 50, humi: 20, res: 90 }
   },
   { 
@@ -246,10 +246,10 @@ export const RACES = [
     desc: 'Властелины небес, строящие города на вершинах гор.', 
     icon: <Bird className="text-sky-300" />,
     image: 'https://i.ibb.co/zTnsqxxN/angeli.jpg',
-    biology: LORE_LONG('Пернатые', 'вид крылатых'),
+    history: LORE_LONG('Пернатые', 'вид крылатых'),
     reproduction: { type: 'Высиживание', term: '2 месяца', offspring: '2-4 яйца' },
     development: { maturation: '12 лет', lifespan: '60 лет', features: 'Полет и острое зрение' },
-    stats: { avgGrowth: 1.5, avgMortality: 1.0 },
+    stats: { growth: 1.5, mortality: 1.0 },
     habitat: { temp: 40, grav: 20, atmo: 80, rad: 20, humi: 40, res: 50 }
   },
   { 
@@ -260,10 +260,10 @@ export const RACES = [
     desc: 'Существа, обитающие на грани измерений.', 
     icon: <Moon className="text-indigo-500" />,
     image: 'https://i.ibb.co/DDWsvbWz/teni.jpg',
-    biology: LORE_LONG('Скитальцы Бездны', 'вид теневых'),
+    history: LORE_LONG('Скитальцы Бездны', 'вид теневых'),
     reproduction: { type: 'Разрыв реальности', term: 'Неизвестно', offspring: '1 тень' },
     development: { maturation: '33 года', lifespan: 'Неограниченно', features: 'Скрытность и фазовый сдвиг' },
-    stats: { avgGrowth: 0.1, avgMortality: 0.01 },
+    stats: { growth: 0.1, mortality: 0.01 },
     habitat: { temp: 10, grav: 10, atmo: 0, rad: 80, humi: 0, res: 40 }
   },
   { 
@@ -274,10 +274,10 @@ export const RACES = [
     desc: 'Жесткая иерархия и мгновенное исполнение приказов.', 
     icon: <Bug className="text-amber-600" />,
     image: 'https://i.ibb.co/KpkfJvFB/ants.jpg',
-    biology: LORE_LONG('Инсектоиды', 'вид роя'),
+    history: LORE_LONG('Инсектоиды', 'вид роя'),
     reproduction: { type: 'Личинки', term: '2 недели', offspring: '500+ личинок' },
     development: { maturation: '1 год', lifespan: '10 лет', features: 'Роевой интеллект и быстрая реакция' },
-    stats: { avgGrowth: 5.0, avgMortality: 4.5 },
+    stats: { growth: 5.0, mortality: 4.5 },
     habitat: { temp: 60, grav: 50, atmo: 60, rad: 40, humi: 60, res: 80 }
   },
   { 
@@ -288,10 +288,10 @@ export const RACES = [
     desc: 'Гиганты, способные изменять ландшафт своими руками.', 
     icon: <Mountain className="text-stone-500" />,
     image: 'https://i.ibb.co/Znb6p8K/titani.jpg',
-    biology: LORE_LONG('Титаны', 'вид каменных'),
+    history: LORE_LONG('Титаны', 'вид каменных'),
     reproduction: { type: 'Оживление', term: '10 лет', offspring: '1 малый титан' },
     development: { maturation: '100 лет', lifespan: '5000 лет', features: 'Огромная сила и долголетие' },
-    stats: { avgGrowth: 0.05, avgMortality: 0.01 },
+    stats: { growth: 0.05, mortality: 0.01 },
     habitat: { temp: 70, grav: 100, atmo: 40, rad: 50, humi: 30, res: 100 }
   },
 ];
@@ -304,5 +304,29 @@ export const getCompatibility = (raceHabitat: Habitat, planetHabitat: Habitat): 
   });
   const compatibility = Math.max(1, Math.round(100 - (totalDiff / 6)));
   return compatibility;
+};
+
+export const ERAS = [
+  { name: "Первобытность", minYear: 0, minPop: 0 },
+  { name: "Неолит", minYear: 500, minPop: 5000 },
+  { name: "Бронзовый век", minYear: 2000, minPop: 50000 },
+  { name: "Железный век", minYear: 3500, minPop: 200000 },
+  { name: "Античность", minYear: 5000, minPop: 1000000 },
+  { name: "Средневековье", minYear: 6500, minPop: 5000000 },
+  { name: "Ренессанс", minYear: 8000, minPop: 20000000 },
+  { name: "Индустриальная эра", minYear: 9500, minPop: 100000000 },
+  { name: "Атомный век", minYear: 10500, minPop: 500000000 },
+  { name: "Информационный век", minYear: 11500, minPop: 2000000000 },
+  { name: "Космическая эра", minYear: 13000, minPop: 5000000000 },
+];
+
+export const getEra = (year: number, pop: number) => {
+  let currentEra = ERAS[0].name;
+  for (const era of ERAS) {
+    if (year >= era.minYear && pop >= era.minPop) {
+      currentEra = era.name;
+    }
+  }
+  return currentEra;
 };
 
