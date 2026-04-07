@@ -17,6 +17,7 @@ export interface Skill {
   name: string;
   desc: string;
   year: number;
+  era: string;
   type: 'progress' | 'regress';
 }
 
@@ -37,6 +38,10 @@ export interface EraInfo {
   progressCount: number;
   regressCount: number;
   skills: Skill[];
+  ideology: string;
+  externalContacts: string[];
+  soundscape: string;
+  victoryProgress: number;
 }
 
 export interface ChronicleEntry {
@@ -75,6 +80,7 @@ export interface Relic {
   name: string;
   description: string;
   yearFound: number;
+  era: string;
   type: 'artifact' | 'relic';
 }
 

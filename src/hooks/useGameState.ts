@@ -210,6 +210,7 @@ export const useGameState = (isInactive: boolean = false) => {
         name: result.acquiredSkill?.name || 'Новый навык',
         desc: result.acquiredSkill?.description || 'Описание навыка',
         year: newYear,
+        era: prev.era,
         type: result.outcomeType === 'positive' ? 'progress' : 'regress'
       };
 
@@ -242,13 +243,13 @@ export const useGameState = (isInactive: boolean = false) => {
           ? [...prev.heroes, { ...result.hero, id: `hero-${Date.now()}`, yearBorn: newYear, era: prev.era }] 
           : prev.heroes,
         relics: result.relic 
-          ? [...prev.relics, { ...result.relic, id: `relic-${Date.now()}`, yearFound: newYear }] 
+          ? [...prev.relics, { ...result.relic, id: `relic-${Date.now()}`, yearFound: newYear, era: prev.era }] 
           : prev.relics,
         ideology: result.ideology || prev.ideology,
         externalContacts: result.externalContact 
           ? Array.from(new Set([...prev.externalContacts, result.externalContact])) 
           : prev.externalContacts,
-        victoryProgress: Math.min(100, prev.victoryProgress + (result.victoryProgressIncrement || 0)),
+        victoryProgress: Math.min(100, Math.min((newEraYear / 200) * 100, (([...prev.skills, newSkill].filter(s => s.era === prev.era && s.type === 'progress').length) / 25) * 100)),
         currentSoundscape: result.currentSoundscape || prev.currentSoundscape,
         accelerationBonus: skipBonus ? null : ((result.accelerationBonus && !prev.isBonusActive) ? {
           name: result.accelerationBonus.name,
@@ -304,16 +305,20 @@ export const useGameState = (isInactive: boolean = false) => {
     setGameState(prev => {
       if (!prev.pendingEra) return prev;
       
-      const eraSkills = prev.skills.filter(s => s.year >= prev.year - prev.eraYear);
+      const eraSkills = prev.skills.filter(s => s.era === prev.era);
       const newPastEras = [...prev.pastEras, {
         name: prev.era,
         description: prev.eraDescription,
-        yearReached: prev.year - prev.eraYear,
-        yearsPassed: prev.pendingEra.yearsPassedAtTransition,
-        population: prev.pendingEra.populationAtTransition,
+        yearReached: prev.year,
+        yearsPassed: prev.eraYear,
+        population: prev.population,
         progressCount: eraSkills.filter(s => s.type === 'progress').length,
         regressCount: eraSkills.filter(s => s.type === 'regress').length,
-        skills: eraSkills
+        skills: eraSkills,
+        ideology: prev.ideology,
+        externalContacts: prev.externalContacts,
+        soundscape: prev.currentSoundscape,
+        victoryProgress: prev.victoryProgress
       }];
 
       return {
@@ -325,6 +330,7 @@ export const useGameState = (isInactive: boolean = false) => {
           ? prev.pendingEra.newChoices.map((c: any, i: number) => ({ ...c, id: `choice-era-${Date.now()}-${i}` })) 
           : prev.choices,
         eraYear: 0,
+        victoryProgress: 0,
         pastEras: newPastEras,
         pendingEra: null
       };

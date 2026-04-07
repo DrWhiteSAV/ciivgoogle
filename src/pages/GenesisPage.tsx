@@ -181,6 +181,22 @@ export const GenesisPage: React.FC<GenesisPageProps> = ({
           </p>
         </div>
 
+        {gameState.eraDescription && (
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-mono text-gold/40 uppercase tracking-widest">Прогресс Эпохи</span>
+              <span className="text-[10px] font-mono text-gold uppercase tracking-widest">{Math.round(gameState.victoryProgress)}%</span>
+            </div>
+            <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${gameState.victoryProgress}%` }}
+                className="h-full bg-gold shadow-[0_0_10px_rgba(212,175,55,0.5)]"
+              />
+            </div>
+          </div>
+        )}
+
         {gameState.pendingEra && (
           <motion.button
             initial={{ opacity: 0, scale: 0.9 }}
