@@ -11,7 +11,8 @@ import {
   Activity,
   X,
   Eye,
-  Leaf
+  Leaf,
+  Database
 } from 'lucide-react';
 
 import { useGameState } from './hooks/useGameState';
@@ -22,6 +23,7 @@ import { GenesisPage } from './pages/GenesisPage';
 import { FatePage } from './pages/FatePage';
 import { TreePage } from './pages/TreePage';
 import { ProfilePage } from './pages/ProfilePage';
+import { SystemAdminPage } from './pages/SystemAdminPage';
 import { SpaceBackground } from './components/SpaceBackground';
 import { ResultModal, ChronicleModal, YearSelectionModal, Modal, ShopModal, BonusChoiceModal, BonusModal, ObserverControls, WorldModal, RaceModal } from './components/Modals';
 import { Typewriter } from './components/Typewriter';
@@ -81,9 +83,9 @@ const AppContent: React.FC = () => {
   const [previewPlanet, setPreviewPlanet] = useState<any>(null);
   const [previewRace, setPreviewRace] = useState<any>(null);
 
-  // Redirect to setup if no planet/race selected and not on setup page
+  // Redirect to setup if no planet/race selected and not on setup or admin page
   useEffect(() => {
-    if (gameState.year === 0 && !gameState.eraDescription && location.pathname !== '/setup') {
+    if (gameState.year === 0 && !gameState.eraDescription && location.pathname !== '/setup' && location.pathname !== '/system-admin') {
       navigate('/setup');
     }
   }, [gameState.year, gameState.eraDescription, location.pathname, navigate]);
@@ -975,6 +977,7 @@ const AppContent: React.FC = () => {
                 onClose={() => navigate(-1)} 
               />
             } />
+            <Route path="/system-admin" element={<SystemAdminPage />} />
             <Route path="*" element={<Navigate to="/genesis" replace />} />
           </Routes>
         </AnimatePresence>
@@ -1011,6 +1014,16 @@ const AppContent: React.FC = () => {
             <Leaf size={14} className="text-gold" />
             Дерево Жизни
           </button>
+          <button 
+            onClick={() => navigate('/system-admin')} 
+            className={`px-6 py-3 rounded-xl border font-mono text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 ${
+              activeSection === ('system-admin' as any) ? 'bg-gold/20 border-gold text-gold glow-gold' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
+            }`}
+            title="Панель Управления SQLite БД"
+          >
+            <Database size={14} className="text-gold" />
+            SQLite Админ
+          </button>
         </div>
 
         {/* Desktop Footer Text */}
@@ -1034,6 +1047,10 @@ const AppContent: React.FC = () => {
             <button onClick={() => navigate('/tree')} className={`flex flex-col items-center gap-1 transition-all ${activeSection === 'tree' ? 'text-gold scale-110' : 'text-white/40'}`}>
               <Leaf size={14} />
               <span className="font-mono text-[8px] uppercase tracking-widest text-center leading-tight">Дерево Жизни</span>
+            </button>
+            <button onClick={() => navigate('/system-admin')} className={`flex flex-col items-center gap-1 transition-all ${activeSection === ('system-admin' as any) ? 'text-gold scale-110' : 'text-white/40'}`}>
+              <Database size={14} />
+              <span className="font-mono text-[8px] uppercase tracking-widest text-center leading-tight">БД</span>
             </button>
           </div>
           <span className="text-[8px] font-mono text-white/20 uppercase tracking-[0.3em]">

@@ -606,3 +606,16 @@ export const getCompatibility = (raceHabitat: Habitat, planetHabitat: Habitat): 
   const compatibility = Math.max(1, Math.round(100 - (totalDiff / 6)));
   return compatibility;
 };
+
+export const FALLBACK_CHOICES = [
+  { title: 'Путь Единства', desc: 'Объединить племена под знаменем общей веры и общих традиций.' },
+  { title: 'Путь Познания', desc: 'Сфокусироваться на исследовании окружающего мира и стихий.' },
+  { title: 'Путь Силы', desc: 'Установить строгий порядок, укрепляя оборону и дисциплину.' }
+];
+
+export const FALLBACK_SKILLS = [
+  { name: 'Огненный ритуал', description: 'Освоение пламени для обогрева и защиты.' },
+  { name: 'Каменная кладка', description: 'Строительство прочных укреплений из дикого камня.' },
+  { name: 'Травничество', description: 'Использование лечебных растений для увеличения выживаемости.' },
+  { name: 'Звездный навигатор', description: 'Ориентирование по созвездиям во время ночных походов.' }
+];

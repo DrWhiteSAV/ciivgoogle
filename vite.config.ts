@@ -9,6 +9,8 @@ export default defineConfig(({mode}) => {
     plugins: [react(), tailwindcss()],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.PROTALK_BOT_ID': JSON.stringify(env.PROTALK_BOT_ID || '64719'),
+      'process.env.PROTALK_BOT_TOKEN': JSON.stringify(env.PROTALK_BOT_TOKEN || 'TJ1y7wo5qZLSsMY6DrrdCuKYBOM2sOfu'),
     },
     resolve: {
       alias: {

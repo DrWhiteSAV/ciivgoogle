@@ -297,9 +297,35 @@ export const useGameState = (isInactive: boolean = false) => {
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
+  // Save game state to localStorage AND SQLite Database
   const saveGame = useCallback(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+    fetch('/api/db/game-saves', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(gameState)
+    }).catch(err => console.error('[SQLite Sync Error]', err));
   }, [gameState]);
+
+  // Load from SQLite on mount if available
+  useEffect(() => {
+    fetch('/api/db/game-saves/latest')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.gameState) {
+          console.log('[SQLite Sync] Restored game state from SQLite database.');
+          setGameState(prev => ({ ...prev, ...data.gameState }));
+        }
+      })
+      .catch(err => console.warn('[SQLite Load Warning] Could not load save from SQLite:', err));
+  }, []);
+
+  // Save to SQLite on state updates
+  useEffect(() => {
+    if (gameState.year > 0 || gameState.eraDescription) {
+      saveGame();
+    }
+  }, [gameState.year, gameState.eraDescription, gameState.era, gameState.population, saveGame]);
 
   const applyPendingEra = useCallback(() => {
     setGameState(prev => {
